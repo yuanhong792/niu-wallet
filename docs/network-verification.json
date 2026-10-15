@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "scope": "independent processes and keys on one physical computer; loopback only",
+  "checks": {
+    "separateWalletKeys": true,
+    "separateNodeIdentities": true,
+    "sameGenesis": true,
+    "httpRejects_admin_nodeInfo": true,
+    "httpRejects_miner_start": true,
+    "zeroGenesisAllocation": true,
+    "1000NIUSubsidyPerBlock": true,
+    "blockHashAgreement": true,
+    "newAddressSaved": true,
+    "contactAddressBook": true,
+    "backupContainsNewAddress": true,
+    "crossNodeTransfer": true,
+    "remoteMinerAcceptsOtherWalletTransaction": true,
+    "newReceiveAddressCanSpend": true,
+    "solidityDeploymentAfterDependencyUpgrade": true,
+    "solidityUpdateAfterDependencyUpgrade": true
+  },
+  "height": 19,
+  "genesisHash": "0x043bbafa5a26f243e33370e05f90521b771848fc6edda8bf451d900041153869",
+  "gracefulShutdown": true,
+  "finishedAt": "2026-10-15T09:36:02.584Z"
+}

@@ -1,0 +1,15 @@
+/node_modules/
+/runtime/
+/engine/
+/bin/
+/dist/
+/evidence/
+*.exe
+*.zip
+*.tar.gz
+*.dpapi
+*.log
+/keystore/
+/nodekey
+/jwtsecret
+/network-config.json

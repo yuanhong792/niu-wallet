@@ -1,0 +1,244 @@
+{
+  "method": "Physical UTF-8 source lines, including comments/blank lines; excludes upstream copy and dependencies.",
+  "ownWalletAndTools": {
+    "files": 18,
+    "lines": 1164,
+    "nonblank": 1142,
+    "testLines": 71
+  },
+  "nodeChangesFromUpstream": {
+    "baseCommit": "96b2afc25c7023bb500d14e8ed69455339b1ca90",
+    "modifiedFiles": 6,
+    "newFiles": 4,
+    "addedLines": 184,
+    "deletedLines": 10,
+    "netLines": 174,
+    "newTestLines": 105
+  },
+  "walletEditsFromInitialStagingSnapshot": [
+    {
+      "path": ".gitignore",
+      "added": 10,
+      "deleted": 8
+    },
+    {
+      "path": "README.md",
+      "added": 25,
+      "deleted": 26
+    },
+    {
+      "path": "package-lock.json",
+      "added": 24,
+      "deleted": 36
+    },
+    {
+      "path": "package.json",
+      "added": 7,
+      "deleted": 4
+    },
+    {
+      "path": "public/app.js",
+      "added": 0,
+      "deleted": 51
+    },
+    {
+      "path": "public/index.html",
+      "added": 1,
+      "deleted": 19
+    },
+    {
+      "path": "public/style.css",
+      "added": 0,
+      "deleted": 1
+    },
+    {
+      "path": "scripts/lab.mjs",
+      "added": 106,
+      "deleted": 33
+    },
+    {
+      "path": "scripts/portable-launch.ps1",
+      "added": 0,
+      "deleted": 22
+    },
+    {
+      "path": "scripts/server.mjs",
+      "added": 8,
+      "deleted": 8
+    },
+    {
+      "path": "tools/compile-launcher.ps1",
+      "added": 8,
+      "deleted": 1
+    },
+    {
+      "path": "tools/launcher.cs",
+      "added": 367,
+      "deleted": 16
+    },
+    {
+      "path": "tools/package.mjs",
+      "added": 6,
+      "deleted": 4
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "contracts/NiuGuestbook.sol",
+      "lines": 22,
+      "nonblank": 19,
+      "test": false,
+      "sha256": "c92f96f44fe24ca08db79cd0e8d1a278f92e52964654624f95f14dc75fbf40cc"
+    },
+    {
+      "path": "public/index.html",
+      "lines": 1,
+      "nonblank": 1,
+      "test": false,
+      "sha256": "0475610bc50728d82873ca55e5addd45d3e62b05b1e2898e927e98f64e8c7de9"
+    },
+    {
+      "path": "scripts/check-http.mjs",
+      "lines": 28,
+      "nonblank": 28,
+      "test": false,
+      "sha256": "6cf14febbdf7265a30d96c3e97ab50405b400745602787799f456c744e840470"
+    },
+    {
+      "path": "scripts/lab.mjs",
+      "lines": 277,
+      "nonblank": 277,
+      "test": false,
+      "sha256": "2e6f257e05253604ab1809ea338b1ddc497472c3266d12dfd16940f05b4f2654"
+    },
+    {
+      "path": "scripts/local-provider.mjs",
+      "lines": 26,
+      "nonblank": 26,
+      "test": false,
+      "sha256": "6c4f545181db05af89c24b66ba768554b6a4872ebb25d74862b8754a74c93db6"
+    },
+    {
+      "path": "scripts/network.mjs",
+      "lines": 36,
+      "nonblank": 35,
+      "test": false,
+      "sha256": "fd183170fce97c2f43cabbb736b101f2778bd379b46104d8417e45a9f06bfbc6"
+    },
+    {
+      "path": "scripts/network.test.mjs",
+      "lines": 21,
+      "nonblank": 21,
+      "test": true,
+      "sha256": "2b40358b89b72adc393ddcfd65b5a88f0ef23f009a4b222fe60e2827a7a640f2"
+    },
+    {
+      "path": "scripts/portable-vault.mjs",
+      "lines": 43,
+      "nonblank": 42,
+      "test": false,
+      "sha256": "f499dd8900150d6fc1fc96f8db1f4e5e515194659f7b15cae3420953db246756"
+    },
+    {
+      "path": "scripts/portable-vault.test.mjs",
+      "lines": 22,
+      "nonblank": 21,
+      "test": true,
+      "sha256": "a91f948f2ccb4d4416935d18355efcfebb217b1ec9c4940ba30497e97beb76b6"
+    },
+    {
+      "path": "scripts/restore-wallet.mjs",
+      "lines": 35,
+      "nonblank": 35,
+      "test": false,
+      "sha256": "1a4aad12fc6416994cd95ca6480529b61ddf4586555ae4b5182456fa15945877"
+    },
+    {
+      "path": "scripts/restore-wallet.test.mjs",
+      "lines": 28,
+      "nonblank": 27,
+      "test": true,
+      "sha256": "eb2cbe54353576c10ea1ca5a0248032767f3f7035cb2093e7d2c83a7aee4c9db"
+    },
+    {
+      "path": "scripts/server.mjs",
+      "lines": 69,
+      "nonblank": 68,
+      "test": false,
+      "sha256": "093e550a77cf2bf4ff5e62683a9bf6d6c3e20a68a05816ac1f261d33f11db0b8"
+    },
+    {
+      "path": "scripts/verify-network.mjs",
+      "lines": 65,
+      "nonblank": 65,
+      "test": false,
+      "sha256": "53bb6e421a5be89116a1f955edcf68da62b4f4b4dfedbf72acd3410c3c65f908"
+    },
+    {
+      "path": "scripts/wallet-vault.ps1",
+      "lines": 12,
+      "nonblank": 12,
+      "test": false,
+      "sha256": "965e0f40b2c78ecd6d1c61156d0c2542ecf694174f2e54e70423d87ed24fdb37"
+    },
+    {
+      "path": "tools/compile-launcher.ps1",
+      "lines": 11,
+      "nonblank": 11,
+      "test": false,
+      "sha256": "afa4f32c32eaa362c7c6d97233a20a68ddc2d7b305000aa458d5ced9eda80708"
+    },
+    {
+      "path": "tools/count-source.py",
+      "lines": 58,
+      "nonblank": 48,
+      "test": false,
+      "sha256": "45ae46323375da39f1c973d3cd2dd632fa6875ecd94050594d790e69c995618e"
+    },
+    {
+      "path": "tools/launcher.cs",
+      "lines": 376,
+      "nonblank": 372,
+      "test": false,
+      "sha256": "628f52a5e71d52090c4d2d9028ca0a609e57695ecb0cfd2cbc1772bda6870e64"
+    },
+    {
+      "path": "tools/package.mjs",
+      "lines": 34,
+      "nonblank": 34,
+      "test": false,
+      "sha256": "a71191a18d966946ce34c884c2a3ad2d052ef487005b8a9bc916f28108a32687"
+    }
+  ],
+  "newNodeFiles": [
+    {
+      "path": "node/consensus/ethash/niu_test.go",
+      "lines": 34,
+      "nonblank": 30,
+      "test": true,
+      "sha256": "cfa9603f5b93dff7a6a4b8866ae8c4ee455f0a4811cfc46462e4b045e731c828"
+    },
+    {
+      "path": "node/params/mutations/niu_test.go",
+      "lines": 19,
+      "nonblank": 17,
+      "test": true,
+      "sha256": "6e0d907effb1a0067cf3608bbd9ce7debbbc7c3de2a961cb585c2d6e27fb9405"
+    },
+    {
+      "path": "node/params/niu/rules.go",
+      "lines": 50,
+      "nonblank": 45,
+      "test": false,
+      "sha256": "6f17f4e72f31d5d32a1cd92a239937c600c0ce8a14a1cf14c6a8587cb1de97e0"
+    },
+    {
+      "path": "node/params/niu/rules_test.go",
+      "lines": 52,
+      "nonblank": 49,
+      "test": true,
+      "sha256": "72581468796c22f20655fc6301e9925ec816ab115d9e0ab66d77a9d4aad3ce41"
+    }
+  ],
+  "limitation": "Line counts show implementation volume, not security, originality of every technique, human hours, or project completion."
+}

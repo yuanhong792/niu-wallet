@@ -1,0 +1,109 @@
+{
+  "upstreamCommit": "96b2afc25c7023bb500d14e8ed69455339b1ca90",
+  "nodeDiff": [
+    {
+      "path": "cmd/geth/main.go",
+      "added": 0,
+      "deleted": 1
+    },
+    {
+      "path": "consensus/ethash/consensus.go",
+      "added": 10,
+      "deleted": 0
+    },
+    {
+      "path": "internal/debug/flags.go",
+      "added": 0,
+      "deleted": 4
+    },
+    {
+      "path": "miner/worker.go",
+      "added": 4,
+      "deleted": 0
+    },
+    {
+      "path": "params/mutations/rewards.go",
+      "added": 10,
+      "deleted": 0
+    },
+    {
+      "path": "params/version.go",
+      "added": 5,
+      "deleted": 5
+    }
+  ],
+  "newNodeFiles": [
+    "consensus/ethash/niu_test.go",
+    "params/mutations/niu_test.go",
+    "params/niu/rules.go",
+    "params/niu/rules_test.go"
+  ],
+  "walletBaseline": "Local initial staging snapshot, not an earlier public release or full development history",
+  "walletDiff": [
+    {
+      "path": ".gitignore",
+      "added": 10,
+      "deleted": 8
+    },
+    {
+      "path": "README.md",
+      "added": 25,
+      "deleted": 26
+    },
+    {
+      "path": "package-lock.json",
+      "added": 24,
+      "deleted": 36
+    },
+    {
+      "path": "package.json",
+      "added": 7,
+      "deleted": 4
+    },
+    {
+      "path": "public/app.js",
+      "added": 0,
+      "deleted": 51
+    },
+    {
+      "path": "public/index.html",
+      "added": 1,
+      "deleted": 19
+    },
+    {
+      "path": "public/style.css",
+      "added": 0,
+      "deleted": 1
+    },
+    {
+      "path": "scripts/lab.mjs",
+      "added": 106,
+      "deleted": 33
+    },
+    {
+      "path": "scripts/portable-launch.ps1",
+      "added": 0,
+      "deleted": 22
+    },
+    {
+      "path": "scripts/server.mjs",
+      "added": 8,
+      "deleted": 8
+    },
+    {
+      "path": "tools/compile-launcher.ps1",
+      "added": 8,
+      "deleted": 1
+    },
+    {
+      "path": "tools/launcher.cs",
+      "added": 367,
+      "deleted": 16
+    },
+    {
+      "path": "tools/package.mjs",
+      "added": 6,
+      "deleted": 4
+    }
+  ]
+}

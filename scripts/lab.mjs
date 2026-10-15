@@ -1,0 +1,277 @@
+import {spawn,spawnSync} from 'node:child_process';
+import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,createWriteStream,unlinkSync} from 'node:fs';
+import net from 'node:net';
+import {createHash} from 'node:crypto';
+import {resolve,dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {Wallet,JsonRpcProvider,ContractFactory,Contract,isAddress,getAddress,parseEther,formatEther} from 'ethers';
+import solc from 'solc';
+import {exportPortable,importPortable} from './portable-vault.mjs';
+import {loadNetwork,p2pConfig,syncPending} from './network.mjs';
+import {NiuProvider} from './local-provider.mjs';
+export const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+export const CHAIN_ID=26261015;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+export async function waitFor(label,fn,timeout=180000){
+  const end=Date.now()+timeout;let error;
+  while(Date.now()<end){try{const v=await fn();if(v)return v;}catch(e){error=e;}
+    await sleep(500);}
+  throw Error(`${label}超时${error?`：${error.shortMessage||error.message}`:''}`);
+}
+function save(file,value){writeFileSync(file+'.new',JSON.stringify(value,null,2));renameSync(file+'.new',file);}
+function crypt(mode,bytes){
+  const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',resolve(ROOT,'scripts/wallet-vault.ps1'),'-Mode',mode],
+    {input:Buffer.from(bytes).toString('base64'),encoding:'utf8',windowsHide:true,timeout:30000});
+  if(r.status!==0)throw Error('Windows钱包加解密失败。请使用创建钱包时的Windows账户；不要覆盖原钱包。');
+  return Buffer.from(r.stdout.trim(),'base64');
+}
+export class NiuLab {
+  constructor({base=resolve(ROOT,'runtime/persistent'),ports=[18645,18646],p2p=[30471,30472],auth=[18651,18652],network=loadNetwork(ROOT)}={}){
+    this.base=base;this.ports=ports;this.p2p=p2p;this.auth=auth;this.children=[];this.logs=[];this.providers=[];
+    this.ready=false;this.miningUntil=null;this.timer=null;this.busy=false;this.stopping=false;
+    this.network=network;
+    if(this.network){this.ports=ports.slice(0,1);this.p2p=p2p.slice(0,1);this.auth=auth.slice(0,1);}
+  }
+  async start(){
+    mkdirSync(this.base,{recursive:true});
+    this.lockFile=resolve(this.base,'lab.lock');
+    if(existsSync(this.lockFile)){
+      const pid=Number(readFileSync(this.lockFile,'utf8'));
+      let live=true;try{process.kill(pid,0);}catch(e){if(e.code==='ESRCH')live=false;}
+      if(live)throw Error('此数据目录已被另一个牛链进程使用');
+      unlinkSync(this.lockFile);
+    }
+    writeFileSync(this.lockFile,String(process.pid),{flag:'wx'});this.ownsLock=true;
+    try {
+    for(const port of [...this.ports,...this.p2p,...this.auth])await new Promise((ok,fail)=>{
+      const probe=net.createServer();probe.once('error',()=>fail(Error(`端口${port}已被占用，未启动节点`)));
+      probe.listen(port,'127.0.0.1',()=>probe.close(ok));
+    });
+    this.walletFile=resolve(this.base,'wallet.dpapi');
+    if(!existsSync(this.walletFile)){
+      // Do not replace lost keys when an existing chain is present.
+      if(existsSync(resolve(this.base,'node1/geth/chaindata')))throw Error('已有链数据但钱包文件缺失，请先恢复wallet.dpapi备份。');
+      const secret=Buffer.from(JSON.stringify({version:1,keys:[Wallet.createRandom().privateKey,Wallet.createRandom().privateKey]}));
+      try{writeFileSync(this.walletFile,crypt('protect',secret).toString('base64'),{flag:'wx'});}finally{secret.fill(0);}
+    }
+    const decrypted=crypt('unprotect',Buffer.from(readFileSync(this.walletFile,'utf8'),'base64'));
+    try{
+      const vault=JSON.parse(decrypted.toString());
+      if(vault.version!==1||!Array.isArray(vault.keys)||vault.keys.length<2||vault.keys.length>32)throw Error('钱包格式不兼容');
+      this.wallets=vault.keys.map(k=>new Wallet(k));
+      if(new Set(this.wallets.map(w=>w.address)).size!==this.wallets.length)throw Error('钱包包含重复账户');
+    }finally{decrypted.fill(0);}
+    const configFile=resolve(this.base,'genesis.json');
+    const genesis={config:{chainId:CHAIN_ID,homesteadBlock:0,eip150Block:0,eip155Block:0,eip158Block:0,
+      byzantiumBlock:0,constantinopleBlock:0,petersburgBlock:0,istanbulBlock:0,muirGlacierBlock:0,
+      berlinBlock:0,londonBlock:0,arrowGlacierBlock:0,grayGlacierBlock:0,ethash:{}},
+      nonce:'0x0',timestamp:'0x0',extraData:'0x4e4955206c6f63616c20506f57206c6162207631',gasLimit:'0x1c9c380',
+      difficulty:'0x20000',alloc:{},baseFeePerGas:'0x3b9aca00'};
+    if(this.network){
+      const candidate=JSON.parse(readFileSync(resolve(ROOT,'network/genesis.json'),'utf8'));
+      if(candidate.config.chainId!==this.network.chainId||Object.keys(candidate.alloc||{}).length)throw Error('牛链创世配置无效或包含预分配');
+      for(const key of Object.keys(genesis))delete genesis[key];Object.assign(genesis,candidate);
+    }
+    if(!existsSync(configFile))save(configFile,genesis);
+    else if(JSON.stringify(JSON.parse(readFileSync(configFile)))!==JSON.stringify(genesis))throw Error('创世配置与当前程序不同，已停止，防止混用网络。');
+    this.metaFile=resolve(this.base,'activity.json');
+    this.meta=existsSync(this.metaFile)?JSON.parse(readFileSync(this.metaFile)): {transactions:[],contract:null};
+    try{
+      for(let i=0;i<this.ports.length;i++){
+        const datadir=resolve(this.base,`node${i+1}`),exe=resolve(ROOT,this.network?'bin/niu-geth-candidate.exe':'bin/geth.exe');
+        if(!existsSync(exe))throw Error('缺少与牛链规则匹配的节点程序，拒绝使用上游程序替代');
+        const init=spawnSync(exe,['--datadir',datadir,'init',configFile],{encoding:'utf8',windowsHide:true});
+        writeFileSync(resolve(this.base,`init${i+1}.log`),(init.stdout||'')+(init.stderr||''));
+        if(init.status!==0)throw Error(`节点${i+1}初始化失败，详见日志。`);
+        const args=['--datadir',datadir,'--networkid',String(this.network?.networkId||CHAIN_ID),'--nodiscover','--nat',this.network?.advertiseIP?`extip:${this.network.advertiseIP}`:'none',
+          '--port',String(this.p2p[i]),'--maxpeers','16','--syncmode','full',
+          '--http','--http.addr','127.0.0.1','--http.port',String(this.ports[i]),'--http.api','eth,net,web3',
+          '--http.vhosts','localhost,127.0.0.1','--ipcpath',this.ipcPath(i),'--authrpc.addr','127.0.0.1','--authrpc.port',String(this.auth[i]),
+          '--miner.etherbase',this.wallets[0].address,'--miner.gasprice','1000000000',
+          '--ethash.dagdir',resolve(this.base,'ethash'),'--cache','128','console'];
+        if(this.network){const cfg=resolve(this.base,'node.toml');writeFileSync(cfg,p2pConfig(this.network,this.p2p[i]));args.unshift('--config',cfg);}
+        if(!this.network||this.network.restrictPeerIPs)args.unshift('--netrestrict',['127.0.0.0/8',...(this.network?.peerIPs||[]).map(ip=>ip+'/32')].join(','));
+        const out=createWriteStream(resolve(this.base,`node${i+1}.log`),{flags:'a'});this.logs.push(out);
+        const child=spawn(exe,args,{windowsHide:true});this.children.push(child);
+        child.stdout.pipe(out,{end:false});child.stderr.pipe(out,{end:false});
+        child.on('error',()=>{this.ready=false;});
+        child.on('exit',()=>{if(!this.stopping)this.ready=false;});
+      }
+      // Allow the node processes to bind before providers begin their network detection.
+      await sleep(2000);
+      this.providers=this.ports.map((port,i)=>new NiuProvider(port,this.ipcPath(i)));
+      await Promise.all(this.providers.map((p,i)=>waitFor('节点启动',async()=>{
+        if(this.children[i].exitCode!==null)throw Error('节点启动失败');
+        const version=await p.send('web3_clientVersion',[]);
+        if(this.network&&!version.includes('niu-rules1-candidate'))throw Error('节点程序不是牛链规则版本');
+        return version;
+      },45000)));
+      if(!this.network){
+        const info=await this.providers[0].send('admin_nodeInfo',[]);
+        await this.providers[1].send('admin_addPeer',[info.enode.replace(/@[^:]+:/,'@127.0.0.1:')]);
+        await waitFor('两节点互联',async()=>Number(await this.providers[1].send('net_peerCount',[]))===1);
+      }
+      this.genesisHash=(await this.providers[0].getBlock(0)).hash;
+      for(const p of this.providers){
+        if(Number((await p.getNetwork()).chainId)!==(this.network?.chainId||CHAIN_ID)||(await p.getBlock(0)).hash!==this.genesisHash||
+          (this.network&&this.genesisHash.toLowerCase()!==this.network.genesisHash.toLowerCase()))throw Error('节点网络不匹配');
+      }
+      this.ready=true;
+    }catch(e){await this.close();throw e;}
+    } catch(e){if(this.ownsLock){try{unlinkSync(this.lockFile);}catch{}this.ownsLock=false;}throw e;}
+  }
+  async exclusive(fn){
+    if(!this.ready)throw Error('节点尚未就绪');
+    if(this.busy)throw Error('上一项操作仍在处理中，请等待确认');
+    this.busy=true;try{return await fn();}finally{this.busy=false;}
+  }
+  ipcPath(index){
+    const id=createHash('sha256').update(resolve(this.base,`node${index+1}`)).digest('hex').slice(0,24);
+    return process.platform==='win32'?`\\\\.\\pipe\\niu-${id}`:resolve(this.base,`node${index+1}/niu.ipc`);
+  }
+  async mine(enabled){
+    if(!this.ready)throw Error('节点未就绪');
+    if(enabled){
+      if(syncPending(await this.providers[0].send('eth_syncing',[])))throw Error('区块同步尚未完成，请稍后开始挖矿');
+      if(this.network&&!this.network.coordinator&&Number(await this.providers[0].send('net_peerCount',[]))===0)throw Error('没有连接到其他节点，不能开始挖矿');
+      await this.providers[0].send('miner_start',[2]);this.miningUntil=Date.now()+600000;
+      clearTimeout(this.timer);this.timer=setTimeout(()=>this.mine(false).catch(()=>{}),600000);
+    }else{await this.providers[0].send('miner_stop',[]);this.miningUntil=null;clearTimeout(this.timer);}
+    return {mining:enabled,until:this.miningUntil};
+  }
+  async confirmed(tx,kind){
+    this.meta.transactions.unshift({hash:tx.hash,kind,status:'pending',at:new Date().toISOString()});
+    this.meta.transactions=this.meta.transactions.slice(0,30);save(this.metaFile,this.meta);
+    const r=await waitFor('交易确认（需要开启挖矿）',()=>this.providers[0].getTransactionReceipt(tx.hash),240000);
+    const item=this.meta.transactions.find(x=>x.hash===tx.hash);item.status=r.status===1?'confirmed':'failed';item.block=r.blockNumber;save(this.metaFile,this.meta);
+    if(r.status!==1)throw Error('交易执行失败');
+    if(this.providers[1])await waitFor('第二节点同步交易',()=>this.providers[1].getTransactionReceipt(tx.hash));
+    return r;
+  }
+  async requireMining(){
+    if(syncPending(await this.providers[0].send('eth_syncing',[])))throw Error('节点仍在同步，暂时不能发送交易');
+    if(this.network){if(!Number(await this.providers[0].send('net_peerCount',[]))&&!await this.providers[0].send('eth_mining',[]))throw Error('节点未联网，也没有本地矿工');}
+    else if(!await this.providers[0].send('eth_mining',[]))throw Error('请先开启挖矿，交易需要矿工打包');
+  }
+  async transfer(to,amount,from){return this.exclusive(async()=>{
+    if(!isAddress(to)||/^0x0{40}$/i.test(to))throw Error('收款地址格式不正确');
+    if(typeof amount!=='string'||!/^\d+(\.\d{1,18})?$/.test(amount)||amount.length>60)throw Error('请输入有效的NIU数量，最多18位小数');
+    const value=parseEther(amount);if(value<=0n)throw Error('转账数量必须大于0');
+    await this.requireMining();
+    if(await this.providers[0].getCode(to)!=='0x')throw Error('首版转账仅支持普通钱包地址，合约交互请使用留言区');
+    const source=from===undefined?this.wallets[0]:this.wallets.find(w=>w.address.toLowerCase()===String(from).toLowerCase());
+    if(!source)throw Error('发送账户不属于当前钱包');
+    const signer=source.connect(this.providers[0]);
+    if(await this.providers[0].getBalance(signer.address)<value+21000n*2000000000n)throw Error('余额不足，请先挖矿获得测试NIU，并预留手续费');
+    const tx=await signer.sendTransaction({to,value,gasLimit:21000,gasPrice:2000000000n,type:0});
+    const r=await this.confirmed(tx,'转账');return {hash:tx.hash,block:r.blockNumber};
+  });}
+  artifact(){
+    if(this.compiled)return this.compiled;
+    const output=JSON.parse(solc.compile(JSON.stringify({language:'Solidity',sources:{'NiuGuestbook.sol':{content:readFileSync(resolve(ROOT,'contracts/NiuGuestbook.sol'),'utf8')}},
+      settings:{evmVersion:'london',optimizer:{enabled:true,runs:200},outputSelection:{'*':{'*':['abi','evm.bytecode.object']}}}})));
+    if((output.errors||[]).some(x=>x.severity==='error'))throw Error('合约编译失败');
+    return this.compiled=output.contracts['NiuGuestbook.sol'].NiuGuestbook;
+  }
+  async deploy(message){return this.exclusive(async()=>{
+    this.validMessage(message);if(this.meta.contract)throw Error('已有留言合约，请直接更新留言');await this.requireMining();
+    const a=this.artifact();const c=await new ContractFactory(a.abi,a.evm.bytecode.object,this.wallets[0].connect(this.providers[0]))
+      .deploy(message,{gasPrice:2000000000n,type:0});
+    const tx=c.deploymentTransaction();
+    // Persist pending deployment address before waiting; restart can recover a confirmed deployment.
+    this.meta.contract={address:await c.getAddress(),deployHash:tx.hash};save(this.metaFile,this.meta);
+    await this.confirmed(tx,'部署合约');return this.meta.contract;
+  });}
+  validMessage(message){if(typeof message!=='string'||!message.trim()||Buffer.byteLength(message)>512)throw Error('留言不能为空，最多512字节');}
+  async update(message){return this.exclusive(async()=>{
+    this.validMessage(message);if(!this.meta.contract)throw Error('请先部署留言合约');await this.requireMining();
+    const c=new Contract(this.meta.contract.address,this.artifact().abi,this.wallets[0].connect(this.providers[0]));
+    const tx=await c.setMessage(message,{gasPrice:2000000000n,type:0});await this.confirmed(tx,'更新留言');return {hash:tx.hash};
+  });}
+  async newAddress(label){return this.exclusive(async()=>{
+    if(typeof label!=='string'||label.trim().length>40)throw Error('地址备注最多40个字符');
+    if(this.wallets.length>=32)throw Error('本版最多保存32个本地地址');
+    const wallet=Wallet.createRandom(),wallets=[...this.wallets,wallet];
+    const secret=Buffer.from(JSON.stringify({version:1,keys:wallets.map(w=>w.privateKey)}));
+    try{writeFileSync(this.walletFile+'.new',crypt('protect',secret).toString('base64'),{flag:'wx'});renameSync(this.walletFile+'.new',this.walletFile);}
+    finally{secret.fill(0);}
+    // Keys reach disk first. A failed label update must not lose the new key.
+    this.wallets=wallets;this.meta.receiveLabels||={};this.meta.receiveLabels[wallet.address]=label.trim()||`收款地址${wallets.length}`;
+    this.meta.activeReceivingAddress=wallet.address;this.meta.backupRequired=true;save(this.metaFile,this.meta);
+    return {address:wallet.address,backupRequired:true};
+  });}
+  async saveContact(address,label){return this.exclusive(async()=>{
+    if(!isAddress(address)||/^0x0{40}$/i.test(address))throw Error('联系人地址无效');
+    if(typeof label!=='string'||!label.trim()||label.trim().length>40)throw Error('联系人备注需要1至40个字符');
+    const normalized=getAddress(address);this.meta.contacts||=[];
+    const existing=this.meta.contacts.find(c=>c.address===normalized);
+    if(existing)existing.label=label.trim();
+    else{if(this.meta.contacts.length>=100)throw Error('地址簿最多保存100个联系人');this.meta.contacts.push({address:normalized,label:label.trim()});}
+    save(this.metaFile,this.meta);return {saved:true,address:normalized};
+  });}
+  async portableBackup(password){return this.exclusive(async()=>{
+    const backup=await exportPortable(this.wallets,password,{chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash});
+    const dir=resolve(this.base,'backups');mkdirSync(dir,{recursive:true});
+    const file=resolve(dir,`niu-wallet-${new Date().toISOString().replace(/[:.]/g,'-')}.json`);
+    writeFileSync(file,JSON.stringify(backup,null,2),{flag:'wx'});
+    // Read back and decrypt before reporting a usable backup.
+    const restored=await importPortable(readFileSync(file,'utf8'),password,backup.network);
+    if(restored.some((w,i)=>w.address!==this.wallets[i].address))throw Error('备份回读校验失败');
+    this.meta.backupRequired=false;this.meta.backedUpAddresses=this.wallets.map(w=>w.address);save(this.metaFile,this.meta);
+    return {path:file,scope:'可跨电脑恢复；必须同时保管备份文件和密码'};
+  });}
+  async state(){
+    if(!this.ready)throw Error('节点未就绪或已退出，请查看节点日志');
+    const p=this.providers[0];
+    const [heights,balances,mining,peers,syncing,nodeInfo]=await Promise.all([
+      Promise.all(this.providers.map(x=>x.getBlockNumber())),Promise.all(this.wallets.map(w=>p.getBalance(w.address))),
+      p.send('eth_mining',[]),p.send('net_peerCount',[]),p.send('eth_syncing',[]),p.send('admin_nodeInfo',[])]);
+    const blocks=[];
+    for(let n=heights[0];n>=Math.max(0,heights[0]-5);n--){const b=await p.getBlock(n);blocks.push({number:n,hash:b.hash,transactions:b.transactions.length,timestamp:b.timestamp});}
+    let changed=false;
+    for(const item of this.meta.transactions){
+      const r=await p.getTransactionReceipt(item.hash);
+      if(r){
+        const next=r.status===1?'confirmed':'failed',confirmations=Math.max(0,heights[0]-r.blockNumber+1);
+        if(item.status!==next||item.blockHash!==r.blockHash||item.confirmations!==confirmations){
+          item.status=next;item.block=r.blockNumber;item.blockHash=r.blockHash;item.confirmations=confirmations;changed=true;
+        }
+      }else if(item.block!==undefined){
+        item.status='reorged';delete item.block;delete item.blockHash;item.confirmations=0;changed=true;
+      }
+    }
+    if(changed)save(this.metaFile,this.meta);
+    let contract=null;
+    if(this.meta.contract){
+      const address=this.meta.contract.address,code=await p.getCode(address);
+      if(code!=='0x'){
+        const c=new Contract(address,this.artifact().abi,p);
+        contract={address,message:await c.message(),updates:String(await c.updates()),owner:await c.owner()};
+      }else{
+        const r=await p.getTransactionReceipt(this.meta.contract.deployHash);
+        if(r?.status===0){this.meta.contract=null;save(this.metaFile,this.meta);}else contract={address,pending:true};
+      }
+    }
+    return {name:this.network?'牛链集成验证网络':'牛链本地测试网',chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash,heights,peers:Number(peers),
+      syncing:syncPending(syncing)?syncing:false,connectionStatus:Number(peers)===0?'disconnected':syncPending(syncing)?'syncing':'connected',enode:nodeInfo.enode,
+      mining,miningUntil:this.miningUntil,busy:this.busy,wallets:this.wallets.map((w,i)=>({address:w.address,balance:formatEther(balances[i]),name:this.meta.receiveLabels?.[w.address]||(i===0?'默认挖矿地址':`收款地址${i+1}`)})),
+      walletTotal:formatEther(balances.reduce((sum,balance)=>sum+balance,0n)),contacts:this.meta.contacts||[],backupRequired:this.wallets.some(w=>!(this.meta.backedUpAddresses||[]).includes(w.address)),activeReceivingAddress:this.meta.activeReceivingAddress||this.wallets[0].address,
+      blocks,transactions:this.meta.transactions,contract,walletProtection:'Windows DPAPI · 当前账户',dataPath:this.base};
+  }
+  async close(){
+    this.stopping=true;this.ready=false;clearTimeout(this.timer);
+    if(this.providers[0])try{await this.providers[0].send('miner_stop',[]);}catch{}
+    const exited=await Promise.all(this.children.map(c=>new Promise(resolve=>{
+      if(c.exitCode!==null)return resolve(true);
+      const timer=setTimeout(()=>resolve(false),20000);
+      c.once('exit',()=>{clearTimeout(timer);resolve(true);});
+      c.stdin.on('error',()=>{});c.stdin.write('exit\n');
+    })));
+    this.graceful=exited.every(Boolean);
+    this.children.forEach((c,i)=>{if(!exited[i])c.kill();});
+    for(const p of this.providers)p.destroy();
+    this.logs.forEach(l=>l.end());this.wallets=[];
+    if(this.ownsLock){try{unlinkSync(this.lockFile);}catch{}this.ownsLock=false;}
+    return this.graceful;
+  }
+}

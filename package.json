@@ -1,0 +1,16 @@
+{
+  "name": "niu-wallet-local-alpha",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/server.mjs"
+  },
+  "dependencies": {
+    "ethers": "6.17.0",
+    "solc": "0.8.37"
+  },
+  "overrides": {
+    "tmp": "0.2.7"
+  }
+}
