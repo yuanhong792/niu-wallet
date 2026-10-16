@@ -1,0 +1,564 @@
+{
+  "date": "2026-10-15",
+  "baseline": "go-vulnerability-scan.txt",
+  "records": [
+    {
+      "id": "GO-2026-6617",
+      "title": "HTTP/2 server crash due to HPACK encoder race in net/http",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.60.0",
+        "net/http@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6617"
+    },
+    {
+      "id": "GO-2026-6613",
+      "title": "HTTP/1 server connection desynchronization after 2xx CONNECT response in     net/http",
+      "found": [
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "net/http@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6613"
+    },
+    {
+      "id": "GO-2026-6612",
+      "title": "Double flow control refund on HTTP/2 server streams in net/http",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.60.0",
+        "net/http@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6612"
+    },
+    {
+      "id": "GO-2026-6611",
+      "title": "Excessive CPU consumption from repeated initial window changes in net/http",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.60.0",
+        "net/http@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6611"
+    },
+    {
+      "id": "GO-2026-6610",
+      "title": "HTTP/2 transport accepts malformed framing-related headers in net/http",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.60.0",
+        "net/http@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6610"
+    },
+    {
+      "id": "GO-2026-6608",
+      "title": "Memory limit bypass when parsing MIME headers in net/textproto,     mime/multipart",
+      "found": [
+        "mime/multipart@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "mime/multipart@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6608"
+    },
+    {
+      "id": "GO-2026-6607",
+      "title": "Reject malformed ECH outer extension references in crypto/tls",
+      "found": [
+        "crypto/tls@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/tls@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6607"
+    },
+    {
+      "id": "GO-2026-6605",
+      "title": "HTTP/1 client connection desynchronization after CONNECT rejection in     net/http",
+      "found": [
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "net/http@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6605"
+    },
+    {
+      "id": "GO-2026-6603",
+      "title": "HTTP/2 server memory exhaustion due to Trailer headers in net/http",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.60.0",
+        "net/http@go1.26.9"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6603"
+    },
+    {
+      "id": "GO-2026-6278",
+      "title": "Gorilla WebSocket Uses Cryptographically Weak PRNG for WebSocket Mask Key in     github.com/gorilla/websocket",
+      "found": [
+        "github.com/gorilla/websocket@v1.5.0"
+      ],
+      "upstreamFixed": [
+        "github.com/gorilla/websocket@v1.5.3"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6278"
+    },
+    {
+      "id": "GO-2026-6218",
+      "title": "Avoid quadratic complexity in resolvePath in net/url",
+      "found": [
+        "net/url@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "net/url@go1.26.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6218"
+    },
+    {
+      "id": "GO-2026-6090",
+      "title": "Limit handshake messages we are willing to accept post-handshake in     crypto/tls",
+      "found": [
+        "crypto/tls@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/tls@go1.26.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6090"
+    },
+    {
+      "id": "GO-2026-6089",
+      "title": "Apply ReadHeaderTimeout when doing unencrypted HTTP/2 check in net/http",
+      "found": [
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "net/http@go1.26.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6089"
+    },
+    {
+      "id": "GO-2026-6088",
+      "title": "Add recursion depth guard during decode in encoding/xml",
+      "found": [
+        "encoding/xml@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "encoding/xml@go1.26.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-6088"
+    },
+    {
+      "id": "GO-2026-5972",
+      "title": "Enforce maximum recursion depth in encoding/asn1",
+      "found": [
+        "encoding/asn1@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "encoding/asn1@go1.26.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-5972"
+    },
+    {
+      "id": "GO-2026-5970",
+      "title": "Infinite loop on invalid input in golang.org/x/text",
+      "found": [
+        "golang.org/x/text@v0.14.0"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/text@v0.39.0"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-5970"
+    },
+    {
+      "id": "GO-2026-5942",
+      "title": "Parsing an invalid SVCB or HTTPS RR can panic in     golang.org/x/net/dns/dnsmessage",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.56.0",
+        "net@go1.26.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-5942"
+    },
+    {
+      "id": "GO-2026-5856",
+      "title": "Invoking Encrypted Client Hello privacy leak in crypto/tls",
+      "found": [
+        "crypto/tls@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/tls@go1.26.5"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-5856"
+    },
+    {
+      "id": "GO-2026-5039",
+      "title": "Arbitrary inputs are included in errors without any escaping in     net/textproto",
+      "found": [
+        "net/textproto@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "net/textproto@go1.26.4"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-5039"
+    },
+    {
+      "id": "GO-2026-5037",
+      "title": "Inefficient candidate hostname parsing in crypto/x509",
+      "found": [
+        "crypto/x509@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/x509@go1.26.4"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-5037"
+    },
+    {
+      "id": "GO-2026-5026",
+      "title": "Invoking failure to reject ASCII-only Punycode-encoded labels in     golang.org/x/net/idna",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.55.0",
+        "net/http@go1.26.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-5026"
+    },
+    {
+      "id": "GO-2026-4981",
+      "title": "Crash when handling long CNAME response in net",
+      "found": [
+        "net@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "net@go1.26.3"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4981"
+    },
+    {
+      "id": "GO-2026-4971",
+      "title": "Panic in Dial and LookupPort when handling NUL byte on Windows in net",
+      "found": [
+        "net@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "net@go1.26.3"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4971"
+    },
+    {
+      "id": "GO-2026-4947",
+      "title": "Unexpected work during chain building in crypto/x509",
+      "found": [
+        "crypto/x509@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/x509@go1.26.2"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4947"
+    },
+    {
+      "id": "GO-2026-4946",
+      "title": "Inefficient policy validation in crypto/x509",
+      "found": [
+        "crypto/x509@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/x509@go1.26.2"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4946"
+    },
+    {
+      "id": "GO-2026-4918",
+      "title": "Infinite loop in HTTP/2 transport when given bad SETTINGS_MAX_FRAME_SIZE in     net/http/internal/http2 in golang.org/x/net",
+      "found": [
+        "golang.org/x/net@v0.18.0",
+        "net/http@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "golang.org/x/net@v0.53.0",
+        "net/http@go1.26.3"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4918"
+    },
+    {
+      "id": "GO-2026-4870",
+      "title": "Unauthenticated TLS 1.3 KeyUpdate record can cause persistent connection     retention and DoS in crypto/tls",
+      "found": [
+        "crypto/tls@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/tls@go1.26.2"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4870"
+    },
+    {
+      "id": "GO-2026-4866",
+      "title": "Case-sensitive excludedSubtrees name constraints cause Auth Bypass in     crypto/x509",
+      "found": [
+        "crypto/x509@go1.26.1"
+      ],
+      "upstreamFixed": [
+        "crypto/x509@go1.26.2"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4866"
+    },
+    {
+      "id": "GO-2026-4511",
+      "title": "Go Ethereum Improperly Validates the ECIES Public Key in RLPx Handshake in     github.com/ethereum/go-ethereum",
+      "found": [
+        "github.com/ethereum/go-ethereum@v1.12.23+dirty"
+      ],
+      "upstreamFixed": [
+        "github.com/ethereum/go-ethereum@v1.16.9"
+      ],
+      "resolution": "existing-fix-verified",
+      "evidence": "crypto/ecies/ecies.go: GenerateShared rejects invalid curve points before ECDH; p2p/rlpx/rlpx_oracle_poc_test.go",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4511"
+    },
+    {
+      "id": "GO-2026-4508",
+      "title": "Go Ethereum affected by DoS via malicious p2p message in     github.com/ethereum/go-ethereum",
+      "found": [
+        "github.com/ethereum/go-ethereum@v1.12.23+dirty"
+      ],
+      "upstreamFixed": [
+        "github.com/ethereum/go-ethereum@v1.17.0"
+      ],
+      "resolution": "existing-fix-verified",
+      "evidence": "eth/protocols/eth/handler.go, handlers.go and snap/handler.go: pre-decode item bounds, delayed RLP decoding and request tracker validation; handler_cve_test.go and snap/handler_test.go",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4508"
+    },
+    {
+      "id": "GO-2026-4507",
+      "title": "Go Ethereum affected by crash via malicious p2p message in     github.com/ethereum/go-ethereum",
+      "found": [
+        "github.com/ethereum/go-ethereum@v1.12.23+dirty"
+      ],
+      "upstreamFixed": [
+        "github.com/ethereum/go-ethereum@v1.16.9"
+      ],
+      "resolution": "existing-fix-verified",
+      "evidence": "crypto/secp256k1/curve.go, ext.h and crypto/signature_nocgo.go: coordinate bounds; crypto/secp256k1/curve_cve_test.go",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4507"
+    },
+    {
+      "id": "GO-2026-4315",
+      "title": "DoS via malicious p2p message affecting a vulnerable node in     github.com/ethereum/go-ethereum",
+      "found": [
+        "github.com/ethereum/go-ethereum@v1.12.23+dirty"
+      ],
+      "upstreamFixed": [
+        "github.com/ethereum/go-ethereum@v1.16.8"
+      ],
+      "resolution": "backported",
+      "evidence": "core/txpool invalid KZG sentinel and eth/fetcher disconnect sender, stop remaining batches; new niu_security_test.go tests",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4315"
+    },
+    {
+      "id": "GO-2026-4314",
+      "title": "High CPU usage leading to DoS via malicious p2p message in     github.com/ethereum/go-ethereum",
+      "found": [
+        "github.com/ethereum/go-ethereum@v1.12.23+dirty"
+      ],
+      "upstreamFixed": [
+        "github.com/ethereum/go-ethereum@v1.16.8"
+      ],
+      "resolution": "backported",
+      "evidence": "core/txpool invalid KZG sentinel and eth/fetcher disconnect sender, stop remaining batches; new niu_security_test.go tests",
+      "advisory": "https://pkg.go.dev/vuln/GO-2026-4314"
+    },
+    {
+      "id": "GO-2025-4087",
+      "title": "Unchecked memory allocation during vector deserialization in     github.com/consensys/gnark-crypto",
+      "found": [
+        "github.com/consensys/gnark-crypto@v0.12.1"
+      ],
+      "upstreamFixed": [
+        "github.com/consensys/gnark-crypto@v0.18.1"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2025-4087"
+    },
+    {
+      "id": "GO-2025-3553",
+      "title": "Excessive memory allocation during header parsing in     github.com/golang-jwt/jwt",
+      "found": [
+        "github.com/golang-jwt/jwt/v4@v4.5.0"
+      ],
+      "upstreamFixed": [
+        "github.com/golang-jwt/jwt/v4@v4.5.2"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2025-3553"
+    },
+    {
+      "id": "GO-2024-3250",
+      "title": "Improper error handling in ParseWithClaims and bad documentation may cause     dangerous situations in github.com/golang-jwt/jwt",
+      "found": [
+        "github.com/golang-jwt/jwt/v4@v4.5.0"
+      ],
+      "upstreamFixed": [
+        "github.com/golang-jwt/jwt/v4@v4.5.1"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2024-3250"
+    },
+    {
+      "id": "GO-2024-2819",
+      "title": "Denial of Service in github.com/ethereum/go-ethereum",
+      "found": [
+        "github.com/ethereum/go-ethereum@v1.12.23+dirty"
+      ],
+      "upstreamFixed": [
+        "github.com/ethereum/go-ethereum@v1.13.15"
+      ],
+      "resolution": "existing-fix-and-hardening",
+      "evidence": "core/rawdb/accessors_chain.go already caps ancient reads at 2 MiB; added zero-amount header request guard and regression tests",
+      "advisory": "https://pkg.go.dev/vuln/GO-2024-2819"
+    },
+    {
+      "id": "GO-2022-0957",
+      "title": "Denial of service via maliciously crafted JSON in github.com/tidwall/gjson",
+      "found": [
+        "github.com/tidwall/gjson@v1.6.0"
+      ],
+      "upstreamFixed": [
+        "github.com/tidwall/gjson@v1.6.5"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2022-0957"
+    },
+    {
+      "id": "GO-2021-0265",
+      "title": "Denial of service via maliciously crafted path in github.com/tidwall/gjson",
+      "found": [
+        "github.com/tidwall/gjson@v1.6.0"
+      ],
+      "upstreamFixed": [
+        "github.com/tidwall/gjson@v1.9.3"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2021-0265"
+    },
+    {
+      "id": "GO-2021-0059",
+      "title": "Panic due to improper input validation in Get in github.com/tidwall/gjson",
+      "found": [
+        "github.com/tidwall/gjson@v1.6.0"
+      ],
+      "upstreamFixed": [
+        "github.com/tidwall/gjson@v1.6.4"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2021-0059"
+    },
+    {
+      "id": "GO-2021-0054",
+      "title": "Panic due to improper input validation in ForEach in     github.com/tidwall/gjson",
+      "found": [
+        "github.com/tidwall/gjson@v1.6.0"
+      ],
+      "upstreamFixed": [
+        "github.com/tidwall/gjson@v1.6.6"
+      ],
+      "resolution": "upgraded",
+      "evidence": "Go 1.26.9 and pinned dependencies in node/go.mod/go.sum; exact executable and source scan reports",
+      "advisory": "https://pkg.go.dev/vuln/GO-2021-0054"
+    }
+  ],
+  "counts": {
+    "total": 41,
+    "upgraded": 35,
+    "backported": 2,
+    "existingFixVerified": 3,
+    "existingFixAndHardening": 1
+  },
+  "scannerLimitation": "Local main module is (devel). Scanner zero does not certify the six main-module advisories; explicit source and regression evidence is required. No module renaming, fake version bump, or advisory exclusions used.",
+  "remainingModuleNotice": "GO-2026-5932 applies to unimported x/crypto/openpgp, with no upstream fix. Not a reachable finding in this node."
+}

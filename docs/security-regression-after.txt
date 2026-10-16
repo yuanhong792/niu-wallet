@@ -1,0 +1,17 @@
+# github.com/ethereum/go-ethereum/core/rawdb
+# [github.com/ethereum/go-ethereum/core/rawdb]
+core\rawdb\accessors_chain_test.go:394:13: non-constant format string in call to (*testing.common).Fatalf
+core\rawdb\accessors_chain_test.go:404:12: non-constant format string in call to (*testing.common).Fatalf
+ok  	github.com/ethereum/go-ethereum/crypto/ecies	1.123s
+ok  	github.com/ethereum/go-ethereum/crypto/secp256k1	2.286s
+ok  	github.com/ethereum/go-ethereum/crypto/kzg4844	0.177s
+ok  	github.com/ethereum/go-ethereum/core/txpool	1.242s
+ok  	github.com/ethereum/go-ethereum/eth/fetcher	125.900s
+ok  	github.com/ethereum/go-ethereum/params/niu	0.095s
+ok  	github.com/ethereum/go-ethereum/params/mutations	3.256s
+ok  	github.com/ethereum/go-ethereum/p2p/rlpx	1.125s
+ok  	github.com/ethereum/go-ethereum/p2p/tracker	3.250s
+ok  	github.com/ethereum/go-ethereum/eth/protocols/eth	0.446s
+ok  	github.com/ethereum/go-ethereum/eth/protocols/snap	11.968s
+FAIL	github.com/ethereum/go-ethereum/core/rawdb [build failed]
+FAIL

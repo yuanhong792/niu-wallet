@@ -1,0 +1,52 @@
+=== RUN   TestNIUInvalidKZGDisconnectsAndStopsBatches
+--- PASS: TestNIUInvalidKZGDisconnectsAndStopsBatches (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/eth/fetcher	0.315s
+=== RUN   TestNIUInvalidBlobProofHasSentinel
+--- PASS: TestNIUInvalidBlobProofHasSentinel (0.01s)
+PASS
+ok  	github.com/ethereum/go-ethereum/core/txpool	3.301s
+=== RUN   TestCheckResponseItems_CVE_2026_26313
+=== RUN   TestCheckResponseItems_CVE_2026_26313/wrapped_packet_within_limit_passes
+=== RUN   TestCheckResponseItems_CVE_2026_26313/wrapped_packet_exceeding_limit_rejected
+=== RUN   TestCheckResponseItems_CVE_2026_26313/payload_still_decodable_after_check
+--- PASS: TestCheckResponseItems_CVE_2026_26313 (0.00s)
+    --- PASS: TestCheckResponseItems_CVE_2026_26313/wrapped_packet_within_limit_passes (0.00s)
+    --- PASS: TestCheckResponseItems_CVE_2026_26313/wrapped_packet_exceeding_limit_rejected (0.00s)
+    --- PASS: TestCheckResponseItems_CVE_2026_26313/payload_still_decodable_after_check (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/eth/protocols/eth	1.348s
+=== RUN   TestAccountRangeResponseItemLimit
+=== RUN   TestAccountRangeResponseItemLimit/honest-maximum-accepted
+=== RUN   TestAccountRangeResponseItemLimit/regression-over-old-cap
+=== RUN   TestAccountRangeResponseItemLimit/at-limit-accepted
+=== RUN   TestAccountRangeResponseItemLimit/over-limit-rejected
+--- PASS: TestAccountRangeResponseItemLimit (0.04s)
+    --- PASS: TestAccountRangeResponseItemLimit/honest-maximum-accepted (0.01s)
+    --- PASS: TestAccountRangeResponseItemLimit/regression-over-old-cap (0.00s)
+    --- PASS: TestAccountRangeResponseItemLimit/at-limit-accepted (0.02s)
+    --- PASS: TestAccountRangeResponseItemLimit/over-limit-rejected (0.01s)
+PASS
+ok  	github.com/ethereum/go-ethereum/eth/protocols/snap	1.347s
+=== RUN   TestIsOnCurveRejectsCoordinatesAboveP_CVE_2026_26315
+--- PASS: TestIsOnCurveRejectsCoordinatesAboveP_CVE_2026_26315 (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/crypto/secp256k1	1.098s
+=== RUN   TestHandshakeECIESInvalidCurveOracle
+--- PASS: TestHandshakeECIESInvalidCurveOracle (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/p2p/rlpx	2.135s
+=== RUN   TestDifficultyBoundaries
+--- PASS: TestDifficultyBoundaries (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/params/niu	2.136s
+=== RUN   TestNIUHasNoUncleIssuance
+--- PASS: TestNIUHasNoUncleIssuance (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/params/mutations	0.256s
+=== RUN   TestDifficultyCalculators
+--- PASS: TestDifficultyCalculators (0.00s)
+=== RUN   TestNIURejectsUnclesBeforeFakeSealBypass
+--- PASS: TestNIURejectsUnclesBeforeFakeSealBypass (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/consensus/ethash	2.314s

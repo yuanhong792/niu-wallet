@@ -61,3 +61,6 @@ var (
 	// remains pending (and vice-versa).
 	ErrAlreadyReserved = errors.New("address already reserved")
 )
+
+// ErrKZGVerificationError identifies invalid, expensive blob proofs from peers.
+var ErrKZGVerificationError = errors.New("KZG verification error")

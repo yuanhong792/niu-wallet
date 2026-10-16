@@ -1,0 +1,10 @@
+=== RUN   TestSequentialReadByteLimit
+--- PASS: TestSequentialReadByteLimit (0.07s)
+=== RUN   TestNIUHeaderRangeMemoryBound
+--- PASS: TestNIUHeaderRangeMemoryBound (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/core/rawdb	0.319s
+=== RUN   TestNIUZeroHeaderRequestDoesNotReadChain
+--- PASS: TestNIUZeroHeaderRequestDoesNotReadChain (0.00s)
+PASS
+ok  	github.com/ethereum/go-ethereum/eth/protocols/eth	0.285s

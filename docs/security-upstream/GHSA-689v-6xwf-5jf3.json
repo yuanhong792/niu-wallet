@@ -1,0 +1,96 @@
+{
+  "ghsa_id": "GHSA-689v-6xwf-5jf3",
+  "cve_id": "CVE-2026-26313",
+  "url": "https://api.github.com/advisories/GHSA-689v-6xwf-5jf3",
+  "html_url": "https://github.com/advisories/GHSA-689v-6xwf-5jf3",
+  "summary": "Go Ethereum affected by DoS via malicious p2p message",
+  "description": "### Impact\n\nAn attacker can cause high memory usage by sending a specially-crafted p2p message.\nMore details to be released later.\n\n### Patches\n\nThe issue is resolved in the v1.17.0 release. \n\n### Credit\n\nThis issue was reported to the Ethereum Foundation Bug Bounty Program by @revofusion",
+  "type": "reviewed",
+  "severity": "medium",
+  "repository_advisory_url": "https://api.github.com/repos/ethereum/go-ethereum/security-advisories/GHSA-689v-6xwf-5jf3",
+  "source_code_location": "https://github.com/ethereum/go-ethereum",
+  "identifiers": [
+    {
+      "value": "GHSA-689v-6xwf-5jf3",
+      "type": "GHSA"
+    },
+    {
+      "value": "CVE-2026-26313",
+      "type": "CVE"
+    }
+  ],
+  "references": [
+    "https://github.com/ethereum/go-ethereum/security/advisories/GHSA-689v-6xwf-5jf3",
+    "https://github.com/ethereum/go-ethereum/releases/tag/v1.17.0",
+    "https://nvd.nist.gov/vuln/detail/CVE-2026-26313",
+    "https://pkg.go.dev/vuln/GO-2026-4508",
+    "https://github.com/advisories/GHSA-689v-6xwf-5jf3"
+  ],
+  "published_at": "2026-02-18T22:34:49Z",
+  "updated_at": "2026-02-27T20:38:25Z",
+  "github_reviewed_at": "2026-02-18T22:34:49Z",
+  "nvd_published_at": "2026-02-19T21:18:31Z",
+  "withdrawn_at": null,
+  "vulnerabilities": [
+    {
+      "package": {
+        "ecosystem": "go",
+        "name": "github.com/ethereum/go-ethereum"
+      },
+      "vulnerable_version_range": "< 1.17.0",
+      "first_patched_version": "1.17.0",
+      "vulnerable_functions": []
+    }
+  ],
+  "cvss_severities": {
+    "cvss_v3": {
+      "vector_string": null,
+      "score": 0.0
+    },
+    "cvss_v4": {
+      "vector_string": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:L/SC:N/SI:N/SA:N",
+      "score": 6.9
+    }
+  },
+  "cwes": [
+    {
+      "cwe_id": "CWE-770",
+      "name": "Allocation of Resources Without Limits or Throttling"
+    }
+  ],
+  "credits": [
+    {
+      "user": {
+        "login": "revofusion",
+        "id": 138184593,
+        "node_id": "U_kgDOCDyHkQ",
+        "avatar_url": "https://avatars.githubusercontent.com/u/138184593?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/revofusion",
+        "html_url": "https://github.com/revofusion",
+        "followers_url": "https://api.github.com/users/revofusion/followers",
+        "following_url": "https://api.github.com/users/revofusion/following{/other_user}",
+        "gists_url": "https://api.github.com/users/revofusion/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/revofusion/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/revofusion/subscriptions",
+        "organizations_url": "https://api.github.com/users/revofusion/orgs",
+        "repos_url": "https://api.github.com/users/revofusion/repos",
+        "events_url": "https://api.github.com/users/revofusion/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/revofusion/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "type": "finder"
+    }
+  ],
+  "comments": 1,
+  "cvss": {
+    "vector_string": null,
+    "score": null
+  },
+  "epss": {
+    "percentage": 0.00633,
+    "percentile": 0.48741
+  }
+}

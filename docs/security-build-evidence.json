@@ -1,0 +1,50 @@
+{
+  "recordedAt": "2026-10-16T01:10:54.438926+00:00",
+  "binary": "bin/niu-geth-security.exe",
+  "sha256": "6ea95784172b2f2edb59c20ad8b263b7b1d33a88d820079e0cf0606c014e204b",
+  "bytes": 104782035,
+  "toolchain": "go1.26.9 windows/amd64",
+  "cgo": true,
+  "compiler": "GCC 16.2.0 / MinGW-w64 UCRT 14",
+  "scanner": "govulncheck v1.9.0",
+  "binaryReachableFindings": 0,
+  "sourceReachableFindings": 0,
+  "unimportedModuleNotices": [
+    "GO-2026-5932 x/crypto/openpgp; no upstream fixed version"
+  ],
+  "mainModule": "(devel); six upstream module advisories checked against source and targeted tests separately",
+  "networkVerification": {
+    "status": "passed",
+    "scope": "independent processes and keys on one physical computer; loopback only",
+    "checks": {
+      "separateWalletKeys": true,
+      "separateNodeIdentities": true,
+      "sameGenesis": true,
+      "httpRejects_admin_nodeInfo": true,
+      "httpRejects_miner_start": true,
+      "zeroGenesisAllocation": true,
+      "1000NIUSubsidyPerBlock": true,
+      "blockHashAgreement": true,
+      "newAddressSaved": true,
+      "contactAddressBook": true,
+      "backupContainsNewAddress": true,
+      "crossNodeTransfer": true,
+      "remoteMinerAcceptsOtherWalletTransaction": true,
+      "newReceiveAddressCanSpend": true,
+      "solidityDeploymentAfterDependencyUpgrade": true,
+      "solidityUpdateAfterDependencyUpgrade": true
+    },
+    "height": 17,
+    "genesisHash": "0x043bbafa5a26f243e33370e05f90521b771848fc6edda8bf451d900041153869",
+    "gracefulShutdown": true,
+    "finishedAt": "2026-10-15T10:14:24.124Z"
+  },
+  "testResults": {
+    "securityFocused": "passed; docs/security-focused-tests.txt",
+    "headerBounds": "passed; docs/security-header-bounds-tests.txt",
+    "elevenCriticalPackages": "passed individually in docs/security-regression-after.txt",
+    "fullRawdb": "not passed: initial Go vet formatting errors corrected; subsequent TestFreezerBasicsClosing timed out at 60s, see docs/security-rawdb-tests.txt",
+    "allUpstreamTests": "not claimed"
+  },
+  "formalWalletRelease": false
+}

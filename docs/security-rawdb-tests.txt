@@ -1,0 +1,113 @@
+Version 1 count 30, deleted 0, hidden 0
+| number | fileno | offset |
+|--------|--------|--------|
+|  000   |  000   |  015   |
+|  001   |  000   |  030   |
+|  002   |  000   |  045   |
+|  003   |  001   |  015   |
+|  004   |  001   |  030   |
+|  005   |  001   |  045   |
+|  006   |  002   |  015   |
+|  007   |  002   |  030   |
+|  008   |  002   |  045   |
+|  009   |  003   |  015   |
+|  010   |  003   |  030   |
+|  011   |  003   |  045   |
+|  012   |  004   |  015   |
+|  013   |  004   |  030   |
+|  014   |  004   |  045   |
+|  015   |  005   |  015   |
+|  016   |  005   |  030   |
+|  017   |  005   |  045   |
+|  018   |  006   |  015   |
+|  019   |  006   |  030   |
+|  020   |  006   |  045   |
+|  021   |  007   |  015   |
+|  022   |  007   |  030   |
+|  023   |  007   |  045   |
+|  024   |  008   |  015   |
+|  025   |  008   |  030   |
+|  026   |  008   |  045   |
+|  027   |  009   |  015   |
+|  028   |  009   |  030   |
+|  029   |  009   |  045   |
+|--------------------------|
+
+Version 1 count 7, deleted 0, hidden 0
+| number | fileno | offset |
+|--------|--------|--------|
+|  000   |  000   |  020   |
+|  001   |  000   |  040   |
+|  002   |  001   |  020   |
+|  003   |  001   |  040   |
+|  004   |  002   |  020   |
+|  005   |  002   |  040   |
+|  006   |  003   |  020   |
+|--------------------------|
+
+
+Version 1 count 7, deleted 0, hidden 1
+| number | fileno | offset |
+|--------|--------|--------|
+|  000   |  000   |  020   |
+|  001   |  000   |  040   |
+|  002   |  001   |  020   |
+|  003   |  001   |  040   |
+|  004   |  002   |  020   |
+|  005   |  002   |  040   |
+|  006   |  003   |  020   |
+|--------------------------|
+
+panic: test timed out after 1m0s
+	running tests:
+		TestFreezerBasicsClosing (12s)
+
+goroutine 239 [running]:
+testing.(*M).startAlarm.func1()
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/testing/testing.go:2802 +0x354
+created by time.goFunc
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/time/sleep.go:215 +0x2d
+
+goroutine 1 [chan receive]:
+testing.tRunner.func1()
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/testing/testing.go:1993 +0x431
+testing.tRunner(0x2bd39d97e000, 0x2bd39d89dc58)
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/testing/testing.go:2042 +0xfc
+testing.runTests({0x7ff72a1a0801, 0x1f}, {0x7ff72a1ab071, 0x2a}, 0x2bd39d9333c8, {0x7ff729ff7e40, 0x35, 0x35}, {0xc2ac479162623028, 0xdf8be0929, ...})
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/testing/testing.go:2583 +0x4f0
+testing.(*M).Run(0x2bd39d97a0a0)
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/testing/testing.go:2443 +0x6ac
+main.main()
+	_testmain.go:154 +0x9b
+
+goroutine 196 [runnable]:
+syscall.syscalln(0x0?, 0x0?, {0x2bd39d6e18a8?, 0x7ff7298c03c5?, 0x0?})
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/runtime/syscall_windows.go:431 +0x4e
+syscall.SyscallN(0x50?, {0x2bd39d6e18a8?, 0x4e?, 0x2bd39df90000?})
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/syscall/dll_windows.go:99 +0x1e
+syscall.createFile(0x2bd39df8e000?, 0x80000000, 0x3, 0x4d?, 0x3, 0x2000080, 0x0)
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/syscall/zsyscall_windows.go:507 +0xee
+syscall.Open({0x2bd39df8e000?, 0x1?}, 0x80000, 0x1a4)
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/syscall/syscall_windows.go:444 +0x1b1
+os.openFileNolog({0x2bd39df8e000, 0x4f}, 0x0, 0x9df8e000?)
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/os/file_windows.go:162 +0xa7
+os.OpenFile({0x2bd39df8e000, 0x4f}, 0x0, 0x1a4)
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/os/file.go:412 +0x3e
+github.com/ethereum/go-ethereum/core/rawdb.openFreezerFileForReadOnly({0x2bd39df8e000?, 0x2?})
+	E:/牛币/wallet-release/repository/node/core/rawdb/freezer_utils.go:97 +0x1f
+github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).openFile(0x2bd39d900ea0, 0x3f, 0x7ff72a1c9b88)
+	E:/牛币/wallet-release/repository/node/core/rawdb/freezer_table.go:644 +0x183
+github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).preopen(0x2bd39d900ea0)
+	E:/牛币/wallet-release/repository/node/core/rawdb/freezer_table.go:377 +0x56
+github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).repair(0x2bd39d900ea0)
+	E:/牛币/wallet-release/repository/node/core/rawdb/freezer_table.go:356 +0xba7
+github.com/ethereum/go-ethereum/core/rawdb.newTable({0x2bd39d936b40, 0x24}, {0x2bd39e184000, 0x20}, {0x7ff72a1d9360, 0x7ff72a86c260}, {0x7ff72a1d9360, 0x7ff72a86c260}, {0x7ff72a1df280, 0x7ff72a86c260}, ...)
+	E:/牛币/wallet-release/repository/node/core/rawdb/freezer_table.go:182 +0x5f5
+github.com/ethereum/go-ethereum/core/rawdb.TestFreezerBasicsClosing(0x2bd39da48400)
+	E:/牛币/wallet-release/repository/node/core/rawdb/freezer_table_test.go:118 +0x651
+testing.tRunner(0x2bd39da48400, 0x7ff72a1c9970)
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/testing/testing.go:2036 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Users/Administrator/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.9.windows-amd64/src/testing/testing.go:2101 +0x4a9
+FAIL	github.com/ethereum/go-ethereum/core/rawdb	60.215s
+FAIL

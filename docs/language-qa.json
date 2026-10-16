@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "language": "zh-CN",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "en",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "ja",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "ko",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "es",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "ru",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    }
+  ],
+  "backendStarted": false,
+  "at": "2026-10-16T01:12:27.1201128Z",
+  "binarySha256": "1fb0f9a6006e0b709c5ac0d3562e76eee08b7e85f10ed232ac2f784e52f2aa9e",
+  "embeddedCatalogs": 6,
+  "catalogEntriesPerLanguage": 134
+}
