@@ -118,12 +118,25 @@ class WalletForm : Form {
     Dictionary<Control,string> languageText = new Dictionary<Control,string>();
     List<string> columnText = new List<string>();
     System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
+    // Incoming-payment announcement: a tray balloon plus an in-window banner, so a
+    // payment that arrives while the wallet sits in the background is not silent.
+    NotifyIcon tray = new NotifyIcon();
+    Panel incomingBanner = new Panel();
+    Label incomingText = new Label(), recentList = new Label(), txDetailHash = new Label(), txDetailMeta = new Label();
+    DateTime incomingBannerUntil = DateTime.MinValue;
+    string selectedHash = "", txFilter = "all";
+    readonly HashSet<string> notifiedIncoming = new HashSet<string>();
+    bool incomingPrimed;
 
     public WalletForm(bool test, bool languageTest = false) {
         smoke = test; Text = NiuLanguage.T("牛币钱包  NIU Wallet"); ClientSize = new Size(1180, 760); MinimumSize = new Size(1100, 740);
         StartPosition = FormStartPosition.CenterScreen; Font = new Font("Microsoft YaHei UI", 10); BackColor = Color.FromArgb(246,240,223);
         string iconPath = Path.Combine(root, "assets", "niu-gold-v4.ico");
-        if (File.Exists(iconPath)) Icon = new Icon(iconPath);
+        if (File.Exists(iconPath)) { Icon = new Icon(iconPath); try { tray.Icon = new Icon(iconPath); } catch { } }
+        tray.Text = NiuLanguage.T("牛币钱包");
+        // Only expose the tray icon when it actually has a bitmap; a NotifyIcon
+        // without one can throw on some shells.
+        if (tray.Icon != null) tray.Visible = true;
         var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.White, Padding = new Padding(24, 12, 24, 8) };
         string logoPath = Path.Combine(root, "assets", "niu-gold-v4.png");
         if (File.Exists(logoPath)) header.Controls.Add(new PictureBox { Image = Image.FromFile(logoPath), SizeMode = PictureBoxSizeMode.Zoom, Location = new Point(22, 13), Size = new Size(50, 50) });
@@ -138,7 +151,7 @@ class WalletForm : Form {
         status.AutoEllipsis = true; status.Dock = DockStyle.Fill; status.Text = NiuLanguage.T("正在启动本机节点并读取加密钱包…"); status.ForeColor = Color.FromArgb(82, 96, 61);
         footer.Controls.Add(status); footer.Controls.Add(new Label { Text = NiuLanguage.T("本机网络 · 开发中"), Dock = DockStyle.Right, Width = 300, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(123,115,91), Font = new Font(Font.FontFamily,9) });
         Controls.Add(body); Controls.Add(header); Controls.Add(footer);
-        BuildOverview(); BuildSend(); BuildReceive(); BuildTransactions(); BuildMining(); BuildContract(); BuildBackup();
+        BuildOverview(); BuildSend(); BuildReceive(); BuildTransactions(); BuildSettings();
         foreach(var combo in new ComboBox[]{receiveAccounts,sendAccounts,contactBook}){
             combo.DrawMode=DrawMode.OwnerDrawFixed;combo.ItemHeight=24;combo.DropDownWidth=840;
             combo.DrawItem+=delegate(object sender,DrawItemEventArgs e){
@@ -171,15 +184,27 @@ class WalletForm : Form {
     Button B(string text, int x, int y, EventHandler handler, int width = 155) { var b = new Button { Text = text, Location = new Point(x, y), Size = new Size(width, 42), BackColor = Color.FromArgb(33,77,60), ForeColor = Color.FromArgb(250,246,231), FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor=false }; b.FlatAppearance.BorderSize = 0; b.Click += handler; buttons.Add(b); return b; }
     void BuildOverview() {
         var p = Page(NiuLanguage.T("概览")); p.Controls.Add(L(NiuLanguage.T("钱包概览"), 36, 30, 500, 19));
-        var card=new BanknotePanel {Location=new Point(36,90),Size=new Size(850,190),BackColor=Color.FromArgb(246,240,223)};p.Controls.Add(card);
-        var caption=L(NiuLanguage.T("钱包总余额"),20,20,600);caption.ForeColor=Color.FromArgb(73,101,80);caption.BackColor=card.BackColor;card.Controls.Add(caption);
-        balance = L("— NIU", 20, 60, 600, 38);balance.Font=new Font("Georgia",38,FontStyle.Regular);balance.BackColor=card.BackColor;balance.ForeColor=Color.FromArgb(33,77,60);balance.Height = 72; card.Controls.Add(balance);
-        string coinPath=Path.Combine(root,"assets","niu-gold-v4.png");if(File.Exists(coinPath))card.Controls.Add(new PictureBox {Image=Image.FromFile(coinPath),SizeMode=PictureBoxSizeMode.Zoom,Location=new Point(668,19),Size=new Size(150,150),BackColor=card.BackColor});
-        p.Controls.Add(L(NiuLanguage.T("默认挖矿地址"), 36, 304)); overviewAddress = L(NiuLanguage.T("正在读取…"), 36, 342); overviewAddress.Font = new Font("Consolas", 11); p.Controls.Add(overviewAddress);
-        p.Controls.Add(B(NiuLanguage.T("发送 NIU"),36,402,delegate {SelectPage(1);},150));p.Controls.Add(B(NiuLanguage.T("接收 NIU"),204,402,delegate {SelectPage(2);},150));
-        height = L(NiuLanguage.T("区块高度：—"), 36, 466); peerState = L(NiuLanguage.T("连接：—"), 36, 508); minerState = L(NiuLanguage.T("挖矿：—"), 350, 508, 400);
+        var card=new BanknotePanel {Location=new Point(36,70),Size=new Size(850,160),BackColor=Color.FromArgb(246,240,223)};p.Controls.Add(card);
+        var caption=L(NiuLanguage.T("钱包总余额"),20,14,600);caption.ForeColor=Color.FromArgb(73,101,80);caption.BackColor=card.BackColor;card.Controls.Add(caption);
+        balance = L("— NIU", 20, 48, 600, 34);balance.Font=new Font("Georgia",34,FontStyle.Regular);balance.BackColor=card.BackColor;balance.ForeColor=Color.FromArgb(33,77,60);balance.Height = 66; card.Controls.Add(balance);
+        string coinPath=Path.Combine(root,"assets","niu-gold-v4.png");if(File.Exists(coinPath))card.Controls.Add(new PictureBox {Image=Image.FromFile(coinPath),SizeMode=PictureBoxSizeMode.Zoom,Location=new Point(690,15),Size=new Size(130,130),BackColor=card.BackColor});
+        // Incoming-payment banner. Hidden until a payment this wallet has not
+        // announced before shows up confirmed in the ledger.
+        incomingBanner = new Panel { Location = new Point(36, 240), Size = new Size(850, 46), BackColor = Color.FromArgb(222, 239, 214), Visible = false };
+        incomingText = new Label { Location = new Point(14, 0), Size = new Size(786, 46), TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(33,77,60), Font = new Font(Font.FontFamily, 10, FontStyle.Bold), BackColor = Color.Transparent, AutoEllipsis = true };
+        var dismiss = new Button { Text = "✕", Location = new Point(806, 7), Size = new Size(32, 32), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(222, 239, 214), ForeColor = Color.FromArgb(33,77,60), UseVisualStyleBackColor = false, TabStop = false };
+        dismiss.FlatAppearance.BorderSize = 0;
+        dismiss.Click += delegate { incomingBanner.Visible = false; incomingBannerUntil = DateTime.MinValue; };
+        incomingBanner.Controls.Add(incomingText); incomingBanner.Controls.Add(dismiss); p.Controls.Add(incomingBanner);
+        p.Controls.Add(L(NiuLanguage.T("默认挖矿地址"), 36, 296)); overviewAddress = L(NiuLanguage.T("正在读取…"), 36, 324); overviewAddress.Font = new Font("Consolas", 11); p.Controls.Add(overviewAddress);
+        p.Controls.Add(B(NiuLanguage.T("发送 NIU"),36,366,delegate {SelectPage(1);},150));
+        p.Controls.Add(B(NiuLanguage.T("接收 NIU"),204,366,delegate {SelectPage(2);},150));
+        mine = B(NiuLanguage.T("开启挖矿"), 372, 366, async delegate { await Action(NiuLanguage.T("正在切换挖矿状态…"), async delegate { bool enabled = state == null || !Convert.ToBoolean(state["mining"]); await Post("mine", new { enabled = enabled }); Notify(enabled ? NiuLanguage.T("已开启挖矿，请等待有效区块。") : NiuLanguage.T("挖矿已停止。"), false); }); }, 190); p.Controls.Add(mine);
+        height = L(NiuLanguage.T("区块高度：—"), 36, 420); peerState = L(NiuLanguage.T("连接：—"), 36, 446); minerState = L(NiuLanguage.T("挖矿：—"), 36, 472);
         p.Controls.Add(height); p.Controls.Add(peerState); p.Controls.Add(minerState);
-        foreach (Control control in p.Controls) if (control is PictureBox) control.BringToFront();
+        p.Controls.Add(L(NiuLanguage.T("最近记录"), 36, 504, 500, 12));
+        recentList = new Label { Text = NiuLanguage.T("暂无记录"), Location = new Point(36, 532), Size = new Size(850, 56), Font = new Font("Consolas", 9), ForeColor = Color.FromArgb(71,68,58), AutoEllipsis = true };
+        p.Controls.Add(recentList);
     }
     void BuildSend() {
         var p = Page(NiuLanguage.T("发送")); p.Controls.Add(L(NiuLanguage.T("发送 NIU"), 36, 30, 500, 19));
@@ -224,47 +249,75 @@ class WalletForm : Form {
         }
     }
     void BuildTransactions() {
-        var p = Page(NiuLanguage.T("交易记录")); transactions.Dock = DockStyle.Fill; transactions.View = View.Details; transactions.FullRowSelect = true; transactions.GridLines = true;
-        transactions.Columns.Add(NiuLanguage.T("操作"), 105); transactions.Columns.Add(NiuLanguage.T("状态"), 100); transactions.Columns.Add(NiuLanguage.T("区块"), 80); transactions.Columns.Add(NiuLanguage.T("交易哈希"), 570);
+        var p = Page(NiuLanguage.T("交易记录"));
+        p.Controls.Add(L(NiuLanguage.T("交易记录"), 36, 26, 500, 19));
+        // Direction filter. Everything is local, so switching it must not touch the node.
+        var all = new List<Button>();
+        string[] captions = { NiuLanguage.T("全部"), NiuLanguage.T("收款记录"), NiuLanguage.T("转出记录") };
+        string[] modes = { "all", "in", "out" };
+        for (int i = 0; i < modes.Length; i++) {
+            string mode = modes[i];
+            var filter = new Button { Text = captions[i], Location = new Point(36 + i * 132, 66), Size = new Size(122, 34), FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false, TabStop = false };
+            filter.FlatAppearance.BorderColor = Color.FromArgb(206, 200, 180); filter.FlatAppearance.BorderSize = 1;
+            filter.Click += delegate { txFilter = mode; foreach (Button other in all) { bool active = other == filter; other.BackColor = active ? Color.FromArgb(216, 226, 207) : Color.White; other.Font = new Font(Font.FontFamily, 10, active ? FontStyle.Bold : FontStyle.Regular); } Render(); };
+            all.Add(filter); p.Controls.Add(filter);
+            if (mode == txFilter) { filter.BackColor = Color.FromArgb(216, 226, 207); filter.Font = new Font(Font.FontFamily, 10, FontStyle.Bold); } else filter.BackColor = Color.White;
+        }
+        transactions.Location = new Point(36, 116); transactions.Size = new Size(878, 244);
+        transactions.View = View.Details; transactions.FullRowSelect = true; transactions.GridLines = false; transactions.HideSelection = false; transactions.MultiSelect = false;
+        transactions.Columns.Add(NiuLanguage.T("操作"), 84);
+        transactions.Columns.Add(NiuLanguage.T("金额"), 150);
+        transactions.Columns.Add(NiuLanguage.T("对方"), 300);
+        transactions.Columns.Add(NiuLanguage.T("确认数"), 84);
+        transactions.Columns.Add(NiuLanguage.T("时间"), 132);
+        transactions.Columns.Add(NiuLanguage.T("交易哈希"), 128);
+        transactions.SelectedIndexChanged += delegate { ShowTransactionDetail(); };
         p.Controls.Add(transactions);
+        var detail = new Panel { Location = new Point(36, 374), Size = new Size(878, 206), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        detail.Controls.Add(new Label { Text = NiuLanguage.T("交易详情"), Location = new Point(14, 8), Size = new Size(400, 28), Font = new Font(Font.FontFamily, 11, FontStyle.Bold), ForeColor = Color.FromArgb(33,77,60) });
+        txDetailHash = new Label { Text = NiuLanguage.T("请选择一笔交易"), Location = new Point(14, 40), Size = new Size(690, 28), Font = new Font("Consolas", 11), ForeColor = Color.FromArgb(123,115,91) };
+        txDetailMeta = new Label { Text = "", Location = new Point(14, 74), Size = new Size(848, 124), Font = new Font("Consolas", 9) };
+        var copyHash = new Button { Text = NiuLanguage.T("复制哈希"), Location = new Point(720, 38), Size = new Size(142, 32), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(33,77,60), ForeColor = Color.FromArgb(250,246,231), UseVisualStyleBackColor = false };
+        copyHash.FlatAppearance.BorderSize = 0;
+        copyHash.Click += delegate {
+            try { if (selectedHash == null || selectedHash.Length != 66) throw new Exception(); Clipboard.SetText(selectedHash); Notify(NiuLanguage.T("哈希已复制。"), false); }
+            catch { Notify(NiuLanguage.T("请选择一笔交易"), true); }
+        };
+        detail.Controls.Add(txDetailHash); detail.Controls.Add(txDetailMeta); detail.Controls.Add(copyHash);
+        p.Controls.Add(detail);
     }
-    void BuildMining() {
-        var p = Page(NiuLanguage.T("挖矿")); p.Controls.Add(L(NiuLanguage.T("挖矿"), 36, 30, 500, 19));
-        p.Controls.Add(L(NiuLanguage.T("使用真实 Ethash 工作量证明。每次开启使用2个CPU线程，最多运行10分钟。"), 24, 100));
-        p.Controls.Add(L(NiuLanguage.T("首次生成挖矿数据集或找到区块需要等待，当前未提供GPU矿工或矿池功能。"), 24, 145));
-        mine = B(NiuLanguage.T("开启挖矿"), 24, 220, async delegate { await Action(NiuLanguage.T("正在切换挖矿状态…"), async delegate { bool enabled = state == null || !Convert.ToBoolean(state["mining"]); await Post("mine", new { enabled = enabled }); Notify(enabled ? NiuLanguage.T("已开启挖矿，请等待有效区块。") : NiuLanguage.T("挖矿已停止。"), false); }); }, 190); p.Controls.Add(mine);
-        p.Controls.Add(L(NiuLanguage.T("关闭钱包窗口会正常停止节点与挖矿；再次打开不会自动开始挖矿。"), 24, 320));
-    }
-    void BuildContract() {
-        var p = Page(NiuLanguage.T("智能合约")); p.Controls.Add(L(NiuLanguage.T("Solidity 留言合约"), 24, 24, 500, 17));
-        p.Controls.Add(L(NiuLanguage.T("输入留言；部署与修改需要开启挖矿，并消耗测试NIU手续费。"), 24, 80));
-        message.Location = new Point(24, 122); message.Size = new Size(820, 90); message.Multiline = true; message.MaxLength = 160; message.Text = NiuLanguage.T("慢慢来，也很牛。"); p.Controls.Add(message);
-        deploy = B(NiuLanguage.T("部署留言合约"), 24, 238, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在部署合约并等待确认…"), async delegate { await Post("deploy", new { message = message.Text }); Notify(NiuLanguage.T("合约部署已确认。"), false); }); });
-        update = B(NiuLanguage.T("更新链上留言"), 200, 238, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在修改留言并等待确认…"), async delegate { await Post("message", new { message = message.Text }); Notify(NiuLanguage.T("链上留言已更新。"), false); }); });
-        p.Controls.Add(deploy); p.Controls.Add(update); p.Controls.Add(L(NiuLanguage.T("当前链上留言"), 24, 306));
-        currentMessage = L(NiuLanguage.T("尚未部署"), 24, 346, 900, 15); currentMessage.Height = 56; p.Controls.Add(currentMessage);
-        contractAddress = L("", 24, 420); contractAddress.Font = new Font("Consolas", 10); p.Controls.Add(contractAddress);
-    }
-    void BuildBackup() {
-        var p = Page(NiuLanguage.T("备份与设置")); p.Controls.Add(L(NiuLanguage.T("加密钱包备份"), 24, 24, 500, 17));
-        p.Controls.Add(L(NiuLanguage.T("本机密钥由 Windows 账户保护；导出的备份使用你设置的独立密码加密。"), 24, 90));
-        p.Controls.Add(L(NiuLanguage.T("私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。离开电脑前请点“立即上锁”。"), 24, 112));
-        p.Controls.Add(B(NiuLanguage.T("立即上锁"), 700, 130, async delegate { await Post("lock", new { }); LockWallet(); accountSignature = ""; Notify(NiuLanguage.T("钱包已上锁，私钥已从内存清除。"), false); }, 150));
-        p.Controls.Add(L(NiuLanguage.T("备份可用于换电脑或重装系统。文件和密码缺一不可，项目方无法找回密码。"), 24, 130));
-        backup = B(NiuLanguage.T("保存加密备份"), 24, 190, async delegate {
+    void BuildSettings() {
+        var p = Page(NiuLanguage.T("设置"));
+        // 左栏：备份与安全
+        p.Controls.Add(L(NiuLanguage.T("加密钱包备份"), 24, 24, 500, 17));
+        p.Controls.Add(L(NiuLanguage.T("本机密钥由 Windows 账户保护；导出的备份使用你设置的独立密码加密。"), 24, 62, 470, 9));
+        p.Controls.Add(L(NiuLanguage.T("私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。"), 24, 86, 470, 9));
+        p.Controls.Add(L(NiuLanguage.T("备份可用于换电脑或重装系统。文件和密码缺一不可，项目方无法找回密码。"), 24, 110, 470, 9));
+        backup = B(NiuLanguage.T("保存加密备份"), 24, 148, async delegate {
             if (!smoke && !await EnsureUnlocked()) return;
             string password = smoke ? "QA-only-" + Guid.NewGuid().ToString() : AskPassword(true);
             if (password == null) return;
             await Action(NiuLanguage.T("正在加密并校验备份…"), async delegate { var v = await Post("backup-portable", new { password = password }); backupPath.Text = S(v, "path"); Notify(NiuLanguage.T("备份已加密并通过回读校验。请将文件和密码分开保管。"), false); });
             password = null;
         }, 185); p.Controls.Add(backup);
-        backupPath.Location = new Point(24, 250); backupPath.Size = new Size(850, 60); backupPath.Multiline = true; backupPath.ReadOnly = true; p.Controls.Add(backupPath);
-        backupWarning=L("",24,310,850,9);backupWarning.ForeColor=Color.FromArgb(149,92,31);p.Controls.Add(backupWarning);
-        p.Controls.Add(L(NiuLanguage.T("恢复：在新解压的钱包首次启动时选择“恢复备份”。不覆盖已有钱包。"), 24, 340));
-        p.Controls.Add(L(NiuLanguage.T("关于与网络"),24,382,500,12));
-        var about=L(NiuLanguage.T("本地开发网络：发行规则和朋友之间联网尚未完成，当前余额不承诺迁移。\nCore-Geth v1.12.23 · London EVM · 未签名，未独立审计。"),24,420,870,9);about.Height=70;p.Controls.Add(about);
-        p.Controls.Add(L(NiuLanguage.T("界面语言"),24,506,600,12));
-        languageChoice.Location=new Point(24,546);languageChoice.Width=340;
+        p.Controls.Add(B(NiuLanguage.T("立即上锁"), 230, 148, async delegate { await Post("lock", new { }); LockWallet(); accountSignature = ""; Notify(NiuLanguage.T("钱包已上锁，私钥已从内存清除。"), false); }, 150));
+        backupPath.Location = new Point(24, 206); backupPath.Size = new Size(470, 56); backupPath.Multiline = true; backupPath.ReadOnly = true; p.Controls.Add(backupPath);
+        backupWarning=L("",24,272,470,9);backupWarning.Height=48;backupWarning.ForeColor=Color.FromArgb(149,92,31);p.Controls.Add(backupWarning);
+        p.Controls.Add(L(NiuLanguage.T("恢复：在新解压的钱包首次启动时选择“恢复备份”。不覆盖已有钱包。"), 24, 328, 470, 9));
+        p.Controls.Add(L(NiuLanguage.T("关于与网络"),24,382,470,12));
+        var about=L(NiuLanguage.T("本地开发网络：发行规则和朋友之间联网尚未完成，当前余额不承诺迁移。\nCore-Geth v1.12.23 · London EVM · 未签名，未独立审计。"),24,410,470,9);about.Height=76;p.Controls.Add(about);
+        // 右栏：链上留言与界面语言
+        p.Controls.Add(L(NiuLanguage.T("链上留言"), 560, 24, 400, 17));
+        p.Controls.Add(L(NiuLanguage.T("输入留言；部署与修改需要开启挖矿，并消耗测试NIU手续费。"), 560, 62, 390, 9));
+        message.Location = new Point(560, 98); message.Size = new Size(390, 70); message.Multiline = true; message.MaxLength = 160; message.Text = NiuLanguage.T("慢慢来，也很牛。"); p.Controls.Add(message);
+        deploy = B(NiuLanguage.T("部署留言合约"), 560, 182, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在部署合约并等待确认…"), async delegate { await Post("deploy", new { message = message.Text }); Notify(NiuLanguage.T("合约部署已确认。"), false); }); }, 185);
+        update = B(NiuLanguage.T("更新链上留言"), 765, 182, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在修改留言并等待确认…"), async delegate { await Post("message", new { message = message.Text }); Notify(NiuLanguage.T("链上留言已更新。"), false); }); }, 175);
+        p.Controls.Add(deploy); p.Controls.Add(update);
+        p.Controls.Add(L(NiuLanguage.T("当前链上留言"), 560, 238, 400, 9));
+        currentMessage = L(NiuLanguage.T("尚未部署"), 560, 264, 390, 12); currentMessage.Height = 56; p.Controls.Add(currentMessage);
+        contractAddress = L("", 560, 326, 390, 10); contractAddress.Font = new Font("Consolas", 9); p.Controls.Add(contractAddress);
+        p.Controls.Add(L(NiuLanguage.T("界面语言"),560,372,400,12));
+        languageChoice.Location=new Point(560,402);languageChoice.Width=390;
         languageChoice.Height=34;languageChoice.BackColor=Color.White;languageChoice.ForeColor=Color.FromArgb(33,77,60);languageChoice.TextAlign=ContentAlignment.MiddleLeft;
         foreach(string code in NiuLanguage.Codes) {
             var item=new ToolStripMenuItem(NiuLanguage.Names[Array.IndexOf(NiuLanguage.Codes,code)]);item.Tag=code;
@@ -276,8 +329,7 @@ class WalletForm : Form {
         }
         languageChoice.Click+=delegate {languageMenu.Show(languageChoice,new Point(0,languageChoice.Height));};
         p.Controls.Add(languageChoice);
-        var languageHint=L(NiuLanguage.T("切换立即生效，重启后保留；不改变地址、余额或链上留言。"),24,584,850,9);languageHint.Height=48;p.Controls.Add(languageHint);
-
+        var languageHint=L(NiuLanguage.T("切换立即生效，重启后保留；不改变地址、余额或链上留言。"),560,448,390,9);languageHint.Height=48;p.Controls.Add(languageHint);
     }
     // The vault holds private keys only while unlocked. Any signing action asks
     // for the wallet password first, so an unattended window cannot spend.
@@ -424,14 +476,105 @@ class WalletForm : Form {
         if (sync != null) height.Text += NiuLanguage.T("       同步中  ") + S(sync,"currentBlock") + " / " + S(sync,"highestBlock");
         peerState.Text = NiuLanguage.T("节点连接  ") + state["peers"] + (S(state,"connectionStatus") == "disconnected" ? NiuLanguage.T(" · 未联网") : sync != null ? NiuLanguage.T(" · 正在同步") : NiuLanguage.T(" · 已连接"));
         bool active = Convert.ToBoolean(state["mining"]); minerState.Text = NiuLanguage.T("挖矿状态：") + (active ? NiuLanguage.T("挖矿中（最多十分钟）") : NiuLanguage.T("已停止")); mine.Text = active ? NiuLanguage.T("停止挖矿") : NiuLanguage.T("开启挖矿");
+        // Ledger rows: colour by direction, keep the selection across refreshes,
+        // and notice a confirmed payment that was not in the previous refresh.
+        object[] ledger = A(state["transactions"]); if (ledger == null) ledger = new object[0];
+        Dictionary<string, object> arrived = null;
         transactions.BeginUpdate(); transactions.Items.Clear();
-        foreach (object item in A(state["transactions"])) { var tx = D(item); string txStatus = S(tx, "status"); var row = new ListViewItem(NiuLanguage.T(S(tx, "kind"))); row.SubItems.Add(txStatus == "confirmed" ? NiuLanguage.T("已入块 ") + S(tx,"confirmations") : txStatus == "failed" ? NiuLanguage.T("执行失败") : txStatus == "reorged" ? NiuLanguage.T("链重组待确认") : NiuLanguage.T("等待确认")); row.SubItems.Add(S(tx, "block")); row.SubItems.Add(S(tx, "hash")); transactions.Items.Add(row); }
+        foreach (object item in ledger) {
+            var tx = D(item);
+            string txHash = S(tx, "hash"), dir = S(tx, "dir"), txStatus = S(tx, "status");
+            if (dir == "in" && txStatus == "confirmed") {
+                if (incomingPrimed && arrived == null && !notifiedIncoming.Contains(txHash)) arrived = tx;
+                notifiedIncoming.Add(txHash);
+            }
+            if (txFilter != "all" && dir != txFilter) continue;
+            var row = new ListViewItem(NiuLanguage.T(S(tx, "kind")));
+            row.SubItems.Add(S(tx, "amount").Length > 0 ? (dir == "in" ? "+" : "-") + S(tx, "amount") + " NIU" : "—");
+            string party = dir == "in" ? S(tx, "from") : S(tx, "to");
+            row.SubItems.Add(party.Length > 0 ? party : "—");
+            row.SubItems.Add(txStatus == "confirmed" ? S(tx, "confirmations") : "—");
+            row.SubItems.Add(LocalTime(S(tx, "at"), false));
+            row.SubItems.Add(ShortHash(txHash));
+            row.Tag = txHash;
+            row.ForeColor = dir == "in" ? Color.FromArgb(33, 77, 60) : Color.FromArgb(150, 62, 40);
+            transactions.Items.Add(row);
+            if (txHash == selectedHash) row.Selected = true;
+        }
+        incomingPrimed = true;
         transactions.EndUpdate();
-        var c = state["contract"] as Dictionary<string, object>; currentMessage.Text = c == null ? NiuLanguage.T("尚未部署") : c.ContainsKey("pending") ? NiuLanguage.T("部署等待确认…") : S(c, "message"); contractAddress.Text = c == null ? "" : S(c, "address"); SetEnabled();
+        ShowTransactionDetail();
+        var recent = new List<string>();
+        foreach (object item in ledger) {
+            if (recent.Count >= 3) break;
+            var tx = D(item); string dir = S(tx, "dir");
+            recent.Add((dir == "in" ? "+" : "-") + S(tx, "amount") + " NIU   " + (dir == "in" ? NiuLanguage.T("收款") : NiuLanguage.T("转出")) + "   " + ShortHash(S(tx, "hash")) + "   " + LocalTime(S(tx, "at"), false));
+        }
+        recentList.Text = recent.Count == 0 ? NiuLanguage.T("暂无记录") : String.Join("\n", recent.ToArray());
+        if (incomingBanner.Visible && DateTime.UtcNow > incomingBannerUntil) incomingBanner.Visible = false;
+        var c = state["contract"] as Dictionary<string, object>; currentMessage.Text = c == null ? NiuLanguage.T("尚未部署") : c.ContainsKey("pending") ? NiuLanguage.T("部署等待确认…") : S(c, "message"); contractAddress.Text = c == null ? "" : S(c, "address");
+        if (arrived != null) AnnounceIncoming(arrived);
+        SetEnabled();
+    }
+
+    string ShortHash(string hash) {
+        if (String.IsNullOrEmpty(hash)) return "—";
+        return hash.Length > 20 ? hash.Substring(0, 10) + "…" + hash.Substring(hash.Length - 6) : hash;
+    }
+    string LocalTime(string iso, bool full) {
+        DateTime parsed;
+        if (!String.IsNullOrEmpty(iso) && DateTime.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out parsed))
+            return parsed.ToLocalTime().ToString(full ? "yyyy-MM-dd HH:mm:ss" : "MM-dd HH:mm");
+        return String.IsNullOrEmpty(iso) ? "—" : iso;
+    }
+    Dictionary<string, object> FindTransaction(string hash) {
+        if (state == null || String.IsNullOrEmpty(hash)) return null;
+        object[] ledger = A(state["transactions"]); if (ledger == null) return null;
+        foreach (object item in ledger) { var tx = D(item); if (S(tx, "hash") == hash) return tx; }
+        return null;
+    }
+    // The detail panel is the point of the history page: the full 66-character hash,
+    // the block it landed in and the local time, selectable and copyable.
+    void ShowTransactionDetail() {
+        if (transactions.SelectedItems.Count == 0) {
+            selectedHash = "";
+            txDetailHash.Text = NiuLanguage.T("请选择一笔交易"); txDetailHash.ForeColor = Color.FromArgb(123, 115, 91);
+            txDetailMeta.Text = "";
+            return;
+        }
+        var row = transactions.SelectedItems[0];
+        selectedHash = Convert.ToString(row.Tag);
+        txDetailHash.Text = selectedHash; txDetailHash.ForeColor = Color.FromArgb(33, 77, 60);
+        var tx = FindTransaction(selectedHash);
+        if (tx == null) { txDetailMeta.Text = ""; return; }
+        string dir = S(tx, "dir"), st = S(tx, "status");
+        string statusText = st == "confirmed" ? NiuLanguage.T("已入块 ") + S(tx, "confirmations") : st == "failed" ? NiuLanguage.T("执行失败") : st == "reorged" ? NiuLanguage.T("链重组待确认") : NiuLanguage.T("等待确认");
+        string blockHash = S(tx, "blockHash"); if (blockHash.Length == 0) blockHash = "—";
+        string[] lines = {
+            NiuLanguage.T("金额") + "      " + (dir == "in" ? "+" : "-") + S(tx, "amount") + " NIU",
+            (dir == "in" ? NiuLanguage.T("来自") : NiuLanguage.T("转给")) + "      " + (dir == "in" ? S(tx, "from") : S(tx, "to")),
+            NiuLanguage.T("状态") + "      " + statusText,
+            NiuLanguage.T("本地时间") + "    " + LocalTime(S(tx, "at"), true),
+            NiuLanguage.T("区块哈希") + "    " + blockHash,
+            NiuLanguage.T("完整交易哈希") + "  " + selectedHash
+        };
+        txDetailMeta.Text = String.Join("\n", lines);
+    }
+    // A payment this wallet has not announced before: in-window banner, status line,
+    // and a tray balloon when the window is not already in front of the user.
+    void AnnounceIncoming(Dictionary<string, object> tx) {
+        string summary = NiuLanguage.T("收到") + " " + S(tx, "amount") + " NIU   " + NiuLanguage.T("来自") + " " + ShortHash(S(tx, "from")) + "   " + NiuLanguage.T("确认数") + " " + S(tx, "confirmations");
+        incomingText.Text = NiuLanguage.T("新到账") + "  ·  " + summary;
+        incomingBanner.Visible = true;
+        incomingBannerUntil = DateTime.UtcNow.AddMinutes(2);
+        Notify(summary, false);
+        try { if (!ContainsFocus && tray.Visible) { tray.BalloonTipTitle = NiuLanguage.T("新到账"); tray.BalloonTipText = summary; tray.BalloonTipIcon = ToolTipIcon.Info; tray.ShowBalloonTip(8000); } } catch { }
+        try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
     }
 
     bool IsLiveText(Control c) {
-        return c==status||c==balance||c==height||c==minerState||c==peerState||c==overviewAddress||c==receiveAddress||c==contractAddress||c==currentMessage||c==backupWarning||c==mine;
+        return c==status||c==balance||c==height||c==minerState||c==peerState||c==overviewAddress||c==receiveAddress||c==contractAddress||c==currentMessage||c==backupWarning||c==mine
+            ||c==incomingText||c==recentList||c==txDetailHash||c==txDetailMeta;
     }
     void CaptureLanguageText(Control c) {
         if(!(c is TextBox)&&!(c is ComboBox)&&!IsLiveText(c)) {
@@ -505,6 +648,7 @@ class WalletForm : Form {
             }
             if (outputLog != null) { lock(outputLog) outputLog.Dispose(); }
             if (errorLog != null) { lock(errorLog) errorLog.Dispose(); }
+            try { tray.Visible = false; tray.Dispose(); } catch { }
             Close();
         } catch (Exception e) { Notify(NiuLanguage.T("关闭失败：") + e.Message, true); }
     }
@@ -514,7 +658,7 @@ class WalletForm : Form {
     }
     async Task SmokeTest() {
         try {
-            if (pages.Count != 7 || address.Length != 42 || Convert.ToBoolean(state["mining"]) || receiveQr.Image == null || !ownedAddresses.Contains(qrAddress)) throw new Exception("Native wallet initial state mismatch");
+            if (pages.Count != 5 || address.Length != 42 || Convert.ToBoolean(state["mining"]) || receiveQr.Image == null || !ownedAddresses.Contains(qrAddress)) throw new Exception("Native wallet initial state mismatch");
             string initialLanguage=NiuLanguage.Current;
             string initialAddress=address,initialQr=qrAddress,initialBalance=balance.Text;
             foreach(string code in NiuLanguage.Codes) {
@@ -530,7 +674,10 @@ class WalletForm : Form {
                     File.WriteAllText(Path.Combine(root,"runtime","http-security-qa.json"),output.Result,Encoding.UTF8);
                 }
             });
-            if(!smoke&&!await EnsureUnlocked())return;
+            // Unlock before exercising signed actions. In smoke mode EnsureUnlocked
+            // satisfies the local gate without a dialog; skipping it here left the
+            // whole desktop smoke test failing at the first address creation.
+            if(!await EnsureUnlocked())return;
             var added=await Post("new-address",new {label=NiuLanguage.T("备用收款地址")});string addedAddress=S(added,"address");accountSignature="";await RefreshState();
             if(addedAddress==address||qrAddress!=addedAddress||!ownedAddresses.Contains(addedAddress))throw new Exception("New receive address or QR refresh failed");
             await Post("contact",new {address=recipient,label=NiuLanguage.T("朋友的钱包")});await RefreshState();contactBook.SelectedIndex=0;
@@ -539,8 +686,28 @@ class WalletForm : Form {
             SelectPage(1); sendTo.Text = "invalid-address"; send.PerformClick();
             DateTime limit = DateTime.UtcNow.AddSeconds(15); while (actionBusy && DateTime.UtcNow < limit) await Task.Delay(100);
             if (String.IsNullOrWhiteSpace(status.Text) || status.ForeColor != Color.FromArgb(160, 55, 34)) throw new Exception("Invalid-address feedback missing");
-            SelectPage(6); backup.PerformClick(); limit = DateTime.UtcNow.AddSeconds(90); while (actionBusy && DateTime.UtcNow < limit) await Task.Delay(100);
+            SelectPage(4); backup.PerformClick(); limit = DateTime.UtcNow.AddSeconds(90); while (actionBusy && DateTime.UtcNow < limit) await Task.Delay(100);
             if (!File.Exists(backupPath.Text)) throw new Exception("Native backup button failed: " + status.Text);
+            // History page: the detail panel must expose the full 66-character hash.
+            SelectPage(3); await Task.Delay(200);
+            if (transactions.Items.Count > 0) {
+                transactions.Items[0].Selected = true; await Task.Delay(80);
+                if (txDetailHash.Text.Length != 66) throw new Exception("Detail panel does not show a full hash: " + txDetailHash.Text);
+                if (!txDetailMeta.Text.Contains(NiuLanguage.T("完整交易哈希"))) throw new Exception("Detail panel is missing the hash row");
+            } else if (txDetailHash.Text != NiuLanguage.T("请选择一笔交易")) throw new Exception("Detail placeholder missing: " + txDetailHash.Text);
+            // Drive the announcement path with a synthetic payment: it proves the
+            // banner, status line and tray wiring work even on a chain where no
+            // transfer has arrived yet. It is never written to the ledger.
+            // Switch to the overview first: a banner living on a hidden page reports
+            // Visible=false, so the check has to run where the user would see it.
+            SelectPage(0); await Task.Delay(300);
+            var sample = new Dictionary<string, object> { {"hash", "0x" + new string('a', 64)}, {"dir", "in"}, {"kind", "收款"}, {"amount", "12.5"}, {"from", "0x" + new string('b', 40)}, {"to", address}, {"status", "confirmed"}, {"confirmations", "3"}, {"blockHash", "0x" + new string('c', 64)}, {"at", DateTime.UtcNow.ToString("o")} };
+            AnnounceIncoming(sample);
+            if (!incomingBanner.Visible || !incomingText.Text.Contains("12.5") || !incomingText.Text.Contains("NIU")) throw new Exception("Incoming banner did not render: " + incomingText.Text);
+            using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0, 0, Width, Height)); image.Save(Path.Combine(root, "runtime", "desktop-incoming.png")); }
+            incomingBanner.Visible = false; incomingBannerUntil = DateTime.MinValue;
+            SelectPage(3); await Task.Delay(200);
+            using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0, 0, Width, Height)); image.Save(Path.Combine(root, "runtime", "desktop-transactions.png")); }
             SelectPage(0); await Task.Delay(400);
             using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0, 0, Width, Height)); image.Save(Path.Combine(root, "runtime", "desktop-wallet.png")); }
             SelectPage(2); await Task.Delay(200);

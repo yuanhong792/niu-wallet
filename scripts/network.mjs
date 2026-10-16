@@ -37,7 +37,12 @@ export function validateNetwork(value) {
 }
 export function loadNetwork(root) {
   const path=resolve(root,'network-config.json');
-  return existsSync(path)?validateNetwork(JSON.parse(readFileSync(path,'utf8'))):null;
+  if(!existsSync(path))return null;
+  // Notepad and PowerShell's "Set-Content -Encoding UTF8" both write a BOM, and
+  // JSON.parse rejects one with a bare "Unexpected token". Users are expected to
+  // hand-edit this file, so strip it instead of failing with a cryptic error.
+  const text=readFileSync(path,'utf8').replace(/^\uFEFF/,'');
+  return validateNetwork(JSON.parse(text));
 }
 // Core-Geth may report an all-zero progress object on a fresh genesis. Treat
 // actual missing blocks, not object truthiness, as a mining/sending backlog.
