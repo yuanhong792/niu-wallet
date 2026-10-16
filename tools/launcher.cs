@@ -606,7 +606,7 @@ class WalletForm : Form {
                 status.Text = warning; Notify(warning, true);
             }
         }
-        bool active = Convert.ToBoolean(state["mining"]); minerState.Text = NiuLanguage.T("挖矿状态：") + (active ? NiuLanguage.T("挖矿中（最多十分钟）") : NiuLanguage.T("已停止")); mine.Text = active ? NiuLanguage.T("停止挖矿") : NiuLanguage.T("开启挖矿");
+        bool active = Convert.ToBoolean(state["mining"]); minerState.Text = NiuLanguage.T("挖矿状态：") + (active ? NiuLanguage.T("挖矿中") : NiuLanguage.T("已停止")); mine.Text = active ? NiuLanguage.T("停止挖矿") : NiuLanguage.T("开启挖矿");
         // Ledger rows: colour by direction, keep the selection across refreshes,
         // and notice a confirmed payment that was not in the previous refresh.
         object[] ledger = A(state["transactions"]); if (ledger == null) ledger = new object[0];

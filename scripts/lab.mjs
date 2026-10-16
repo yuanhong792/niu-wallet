@@ -217,12 +217,11 @@ export class NiuLab {
       // on a single thread. Desktop users keep two.
       const threads=(this.network&&this.network.coordinator)?1:2;
       await this.providers[0].send('miner_start',[threads]);
-      // The coordinator is started on demand by the attendant tool, so the desktop
-      // 10-minute session must not cut it off while it still has work to do.
-      const window=(this.network&&this.network.coordinator)?0:600000;
-      this.miningUntil=window?Date.now()+window:null;
+      // Mining now runs until the user stops it. The old fixed 10-minute desktop
+      // window silently halted sealing, and once sealing stops no further blocks
+      // are produced, so every pending transaction stayed unconfirmed forever.
+      this.miningUntil=null;
       clearTimeout(this.timer);
-      if(window)this.timer=setTimeout(()=>this.mine(false).catch(()=>{}),window);
     }else{await this.providers[0].send('miner_stop',[]);this.miningUntil=null;clearTimeout(this.timer);}
     return {mining:enabled,until:this.miningUntil};
   }

@@ -180,5 +180,6 @@
   "导入完成：新增 {0} 个地址，当前共 {1} 个地址。": "Importación completada: {0} dirección(es) añadidas, {1} en total.",
   "备份中的地址均已存在于当前钱包，未新增。": "Todas las direcciones de la copia ya existen en esta billetera; no se añadió ninguna.",
   "检测到链头回退：已自动恢复到区块 {0}（此前链头在区块 {1}）。": "Retroceso de la cadena detectado: restaurado automáticamente al bloque {0} (anterior {1}).",
-  "警告：链头回退到区块 {0}，且回退部分的状态数据已缺失，无法自动恢复。请保持钱包正常关闭（不要结束进程）；新挖矿将从当前链继续。": "Advertencia: la cabeza de la cadena retrocedió al bloque {0} y el estado de los bloques retrocedidos falta; no se puede restaurar automáticamente. Cierre la billetera normalmente (no termine el proceso a la fuerza); la minería continúa en la cadena actual."
+  "警告：链头回退到区块 {0}，且回退部分的状态数据已缺失，无法自动恢复。请保持钱包正常关闭（不要结束进程）；新挖矿将从当前链继续。": "Advertencia: la cabeza de la cadena retrocedió al bloque {0} y el estado de los bloques retrocedidos falta; no se puede restaurar automáticamente. Cierre la billetera normalmente (no termine el proceso a la fuerza); la minería continúa en la cadena actual.",
+  "挖矿中": "Minando"
 }
