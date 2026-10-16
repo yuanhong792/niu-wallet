@@ -212,7 +212,13 @@ class WalletForm : Form {
         // Height follows the text as it actually wraps inside this width, so a
         // long or multi-line string is never clipped to a guessed 34px box.
         int height = Math.Max(34, TextRenderer.MeasureText(text, font, new Size(Math.Max(width - 4, 40), 100000), TextFormatFlags.WordBreak).Height + 8);
-        return new Label { Text = text, Location = new Point(x, y), Size = new Size(width, height), Font = font, AutoEllipsis = true };
+        var label = new Label { Text = text, Location = new Point(x, y), Size = new Size(width, height), Font = font, AutoEllipsis = true };
+        // Single-line labels: let WinForms size the box to the real rendered
+        // text (exact on every DPI), so the box can never clip the glyphs or
+        // overlap the next row. Width stays capped so long one-liners wrap
+        // instead of spilling out of the page.
+        if (height <= 42) { label.AutoSize = true; label.MaximumSize = new Size(width, 0); }
+        return label;
     }
     Button B(string text, int x, int y, EventHandler handler, int width = 155) { var b = new Button { Text = text, Location = new Point(x, y), Size = new Size(width, 42), BackColor = Color.FromArgb(33,77,60), ForeColor = Color.FromArgb(250,246,231), FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor=false }; b.FlatAppearance.BorderSize = 0; b.Click += handler; buttons.Add(b); return b; }
     void BuildOverview() {
@@ -236,7 +242,7 @@ class WalletForm : Form {
         height = L(NiuLanguage.T("区块高度：—"), 36, 420); peerState = L(NiuLanguage.T("连接：—"), 36, 446); minerState = L(NiuLanguage.T("挖矿：—"), 36, 472);
         p.Controls.Add(height); p.Controls.Add(peerState); p.Controls.Add(minerState);
         p.Controls.Add(L(NiuLanguage.T("最近记录"), 36, 504, 500, 12));
-        recentList = new Label { Text = NiuLanguage.T("暂无记录"), Location = new Point(36, 532), Size = new Size(850, 74), Font = new Font("Consolas", 9), ForeColor = Color.FromArgb(71,68,58), AutoEllipsis = true };
+        recentList = new Label { Text = NiuLanguage.T("暂无记录"), Location = new Point(36, 532), Size = new Size(850, 74), Font = new Font("Consolas", 9), ForeColor = Color.FromArgb(71,68,58), AutoEllipsis = true, AutoSize = true, MaximumSize = new Size(850, 0) };
         p.Controls.Add(recentList);
     }
     void BuildSend() {
