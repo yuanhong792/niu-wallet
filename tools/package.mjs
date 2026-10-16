@@ -44,7 +44,7 @@ writeFileSync(resolve(dest,'network-config.json'),JSON.stringify(profile,null,2)
 // remote (HRESULT 0x80131515). Build into the system temporary directory and
 // copy the result in, so a repository path like E:\牛币 still packages.
 const launcherTmp=resolve(tmpdir(),`niu-launcher-${tag}.exe`);
-const compile=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',resolve(root,'tools/compile-launcher.ps1'),'-Source',resolve(root,'tools/launcher.cs'),'-Output',launcherTmp],{encoding:'utf8',windowsHide:true});
+const compile=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',resolve(root,'tools/compile-launcher.ps1'),'-Source',resolve(root,'tools/launcher.cs'),'-Output',launcherTmp],{encoding:'utf8',windowsHide:true});
 if(compile.status!==0)throw Error(compile.stderr||'Launcher compile failed');
 copy(launcherTmp,resolve(dest,'NiuWallet.exe'));
 const data=readFileSync(resolve(dest,'NiuWallet.exe')),pe=data.readUInt32LE(0x3c),optional=pe+24;
