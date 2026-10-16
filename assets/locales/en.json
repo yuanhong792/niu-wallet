@@ -168,5 +168,6 @@
   "请选择一笔交易": "Select a transaction",
   "新到账": "New payment received",
   "本地时间": "Local time",
-  "确认中": "Pending confirmation"
+  "确认中": "Pending confirmation",
+  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。": "Private keys are loaded into memory only while unlocked; the wallet locks automatically after about 5 minutes idle."
 }

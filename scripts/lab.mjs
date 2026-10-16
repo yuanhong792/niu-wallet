@@ -12,6 +12,7 @@ import {NiuProvider} from './local-provider.mjs';
 export const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export const CHAIN_ID=26261015;
 export const LOCK_IDLE_MS=5*60*1000;   // auto-lock the vault after 5 minutes without a signing action
+export const TRANSACTION_LIMIT=200;    // ledger entries kept in activity.json (incoming + outgoing)
 // geth only persists the dirty trie state -- the chain head state -- during an
 // orderly shutdown. Killing the process before that flush completes loses it:
 // the next start logs "Head state missing", falls back to the genesis head and
@@ -28,7 +29,7 @@ export async function waitFor(label,fn,timeout=180000){
 }
 function save(file,value){writeFileSync(file+'.new',JSON.stringify(value,null,2));renameSync(file+'.new',file);}
 function crypt(mode,bytes){
-  const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',resolve(ROOT,'scripts/wallet-vault.ps1'),'-Mode',mode],
+  const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',resolve(ROOT,'scripts/wallet-vault.ps1'),'-Mode',mode],
     {input:Buffer.from(bytes).toString('base64'),encoding:'utf8',windowsHide:true,timeout:30000});
   if(r.status!==0)throw Error('Windows钱包加解密失败。请使用创建钱包时的Windows账户；不要覆盖原钱包。');
   return Buffer.from(r.stdout.trim(),'base64');
@@ -187,14 +188,22 @@ export class NiuLab {
     if(enabled){
       if(syncPending(await this.providers[0].send('eth_syncing',[])))throw Error('区块同步尚未完成，请稍后开始挖矿');
       if(this.network&&!this.network.coordinator&&Number(await this.providers[0].send('net_peerCount',[]))===0)throw Error('没有连接到其他节点，不能开始挖矿');
-      await this.providers[0].send('miner_start',[2]);this.miningUntil=Date.now()+600000;
-      clearTimeout(this.timer);this.timer=setTimeout(()=>this.mine(false).catch(()=>{}),600000);
+      // The coordinator usually shares its machine with other services, so it seals
+      // on a single thread. Desktop users keep two.
+      const threads=(this.network&&this.network.coordinator)?1:2;
+      await this.providers[0].send('miner_start',[threads]);
+      // The coordinator is started on demand by the attendant tool, so the desktop
+      // 10-minute session must not cut it off while it still has work to do.
+      const window=(this.network&&this.network.coordinator)?0:600000;
+      this.miningUntil=window?Date.now()+window:null;
+      clearTimeout(this.timer);
+      if(window)this.timer=setTimeout(()=>this.mine(false).catch(()=>{}),window);
     }else{await this.providers[0].send('miner_stop',[]);this.miningUntil=null;clearTimeout(this.timer);}
     return {mining:enabled,until:this.miningUntil};
   }
   async confirmed(tx,kind){
-    this.meta.transactions.unshift({hash:tx.hash,kind,status:'pending',at:new Date().toISOString()});
-    this.meta.transactions=this.meta.transactions.slice(0,30);save(this.metaFile,this.meta);
+    this.meta.transactions.unshift({hash:tx.hash,kind,status:'pending',dir:'out',to:tx.to||'',amount:formatEther(tx.value??0n),at:new Date().toISOString()});
+    this.meta.transactions=this.meta.transactions.slice(0,TRANSACTION_LIMIT);save(this.metaFile,this.meta);
     const r=await waitFor('交易确认（需要开启挖矿）',()=>this.providers[0].getTransactionReceipt(tx.hash),240000);
     const item=this.meta.transactions.find(x=>x.hash===tx.hash);item.status=r.status===1?'confirmed':'failed';item.block=r.blockNumber;save(this.metaFile,this.meta);
     if(r.status!==1)throw Error('交易执行失败');
@@ -284,7 +293,32 @@ export class NiuLab {
       p.send('eth_mining',[]),p.send('net_peerCount',[]),p.send('eth_syncing',[]),p.send('admin_nodeInfo',[])]);
     const blocks=[];
     for(let n=heights[0];n>=Math.max(0,heights[0]-5);n--){const b=await p.getBlock(n);blocks.push({number:n,hash:b.hash,transactions:b.transactions.length,timestamp:b.timestamp});}
+    // Ledger scan: walk new blocks and record every transaction that touches one
+    // of this wallet's addresses, so incoming payments show up with sender and
+    // amount instead of only the transfers this machine sent itself.
     let changed=false;
+    if(!this.lastLedgerScan||Date.now()-this.lastLedgerScan>5000){
+      this.lastLedgerScan=Date.now();
+      const scannedTo=typeof this.meta.scannedTo==='number'?this.meta.scannedTo:0;
+      const known=new Set(this.meta.transactions.map(x=>x.hash));
+      const mine=this.walletAddresses.map(a=>a.toLowerCase());
+      for(let n=Math.max(1,scannedTo+1);n<=heights[0];n++){
+        let b;try{b=await p.getBlock(n,true);}catch{break;}
+        for(const t of b.prefetchedTransactions){
+          const to=(t.to||'').toLowerCase(),sender=(t.from||'').toLowerCase();
+          const incoming=mine.includes(to),outgoing=mine.includes(sender);
+          if((!incoming&&!outgoing)||known.has(t.hash))continue;
+          this.meta.transactions.unshift({hash:t.hash,dir:incoming?'in':'out',kind:incoming?'收款':'转出',
+            from:t.from,to:t.to||'',amount:formatEther(t.value??0n),block:n,blockHash:b.hash,
+            status:'confirmed',confirmations:Math.max(0,heights[0]-n+1),at:new Date(b.timestamp*1000).toISOString(),
+            call:!!t.data&&t.data!=='0x'});
+          known.add(t.hash);changed=true;
+        }
+        this.meta.scannedTo=n;
+      }
+      if(this.meta.scannedTo!==scannedTo)changed=true;
+      if(this.meta.transactions.length>TRANSACTION_LIMIT)this.meta.transactions=this.meta.transactions.slice(0,TRANSACTION_LIMIT);
+    }
     for(const item of this.meta.transactions){
       const r=await p.getTransactionReceipt(item.hash);
       if(r){

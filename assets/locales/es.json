@@ -168,5 +168,6 @@
   "请选择一笔交易": "Seleccione una transacción",
   "新到账": "Nuevo pago recibido",
   "本地时间": "Hora local",
-  "确认中": "Confirmando"
+  "确认中": "Confirmando",
+  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。": "Las claves privadas solo se cargan en memoria al desbloquear; la cartera se bloquea tras unos 5 minutos de inactividad."
 }

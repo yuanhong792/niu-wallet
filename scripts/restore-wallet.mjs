@@ -25,7 +25,7 @@ try{
   if(readdirSync(data).some(name=>name!=='lab.lock'))throw Error('仅允许恢复到全新的钱包目录，不会覆盖原钱包或链数据');
   const secret=Buffer.from(JSON.stringify({version:1,keys:wallets.map(w=>w.privateKey)}));
   try{
-    const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',resolve(root,'scripts/wallet-vault.ps1'),'-Mode','protect'],
+    const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',resolve(root,'scripts/wallet-vault.ps1'),'-Mode','protect'],
       {input:secret.toString('base64'),encoding:'utf8',windowsHide:true,timeout:30000});
     if(result.status!==0||!/^[A-Za-z0-9+/=]+$/.test(result.stdout.trim()))throw Error('本机钱包加密失败');
     writeFileSync(resolve(data,'wallet.dpapi'),result.stdout.trim(),{flag:'wx'});
