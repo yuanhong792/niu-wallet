@@ -14,7 +14,9 @@ using System.Web.Script.Serialization;
 using QRCoder;
 
 static class NiuDesktop {
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetProcessDPIAware();
     [STAThread] static void Main(string[] args) {
+        try { SetProcessDPIAware(); } catch { }
         Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
         bool created;
         using (Mutex mutex = new Mutex(true, "Local\\NIUWalletDesktopLocalAlpha", out created)) {
@@ -127,10 +129,21 @@ class WalletForm : Form {
     string selectedHash = "", txFilter = "all";
     readonly HashSet<string> notifiedIncoming = new HashSet<string>();
     bool incomingPrimed;
+    // Display scale relative to the 96 DPI design grid; dialogs are separate
+    // Forms outside the auto-scaled tree, so they scale their coordinates here.
+    readonly float uiScale;
+    int U(int v) { return (int)Math.Round(v * uiScale); }
 
     public WalletForm(bool test, bool languageTest = false) {
         smoke = test; Text = NiuLanguage.T("牛币钱包  NIU Wallet"); ClientSize = new Size(1180, 760); MinimumSize = new Size(1100, 740);
         StartPosition = FormStartPosition.CenterScreen; Font = new Font("Microsoft YaHei UI", 10); BackColor = Color.FromArgb(246,240,223);
+        // The layout was drawn for 96 DPI only: on 125%/150% displays fonts grew
+        // while the fixed pixel boxes stayed small, so text clipped and rows
+        // overlapped. Scale the whole tree with the display DPI, and suspend
+        // layout so auto-scaling runs once over the completed control tree.
+        AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96F, 96F);
+        uiScale = DeviceDpi / 96f;
+        SuspendLayout();
         string iconPath = Path.Combine(root, "assets", "niu-gold-v4.ico");
         if (File.Exists(iconPath)) { Icon = new Icon(iconPath); try { tray.Icon = new Icon(iconPath); } catch { } }
         tray.Text = NiuLanguage.T("牛币钱包");
@@ -164,6 +177,7 @@ class WalletForm : Form {
         poll.Interval = 3000; poll.Tick += async delegate { await RefreshState(); };
         CaptureLanguageText(this);
         ApplyLanguage();
+        ResumeLayout(true);
         if (languageTest) Shown += async delegate { await LanguageSmokeTest(); };
         else Shown += async delegate { await StartWallet(); };
         FormClosing += async delegate(object sender, FormClosingEventArgs e) {
@@ -174,19 +188,38 @@ class WalletForm : Form {
             await CloseWallet();
         };
     }
+    protected override void OnShown(EventArgs e) {
+        base.OnShown(e);
+        // After DPI scaling the designed 1180x760 can exceed a small laptop
+        // screen; shrink to the working area instead of letting the bottom (and
+        // the taskbar overlap) cut the page off. Pages scroll for the rest.
+        var work = Screen.FromControl(this).WorkingArea;
+        int width = Math.Min(Width, work.Width), height = Math.Min(Height, work.Height);
+        if (width != Width || height != Height) {
+            Width = width; Height = height;
+            MinimumSize = new Size(Math.Min(1100, work.Width), Math.Min(740, work.Height));
+            CenterToScreen();
+        }
+    }
     Panel Page(string name) {
-        int index = pages.Count; var p = new Panel { BackColor = Color.FromArgb(253,252,247), Padding = new Padding(24), Dock = DockStyle.Fill, Visible = false }; pages.Add(p); workspace.Controls.Add(p);
+        int index = pages.Count; var p = new Panel { BackColor = Color.FromArgb(253,252,247), Padding = new Padding(24), Dock = DockStyle.Fill, Visible = false, AutoScroll = true }; pages.Add(p); workspace.Controls.Add(p);
         var nav = new Button { Text = name, Location = new Point(14,64 + index*54), Size = new Size(154,44), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(16,0,0,0), FlatStyle = FlatStyle.Flat, BackColor = navigation.BackColor, ForeColor = Color.FromArgb(71,68,58), UseVisualStyleBackColor = false, Font = new Font(Font.FontFamily,10) };
         nav.FlatAppearance.BorderSize = 0; nav.Click += delegate { SelectPage(index); }; navButtons.Add(nav); navigation.Controls.Add(nav); return p;
     }
     void SelectPage(int index) { for(int i=0;i<pages.Count;i++){pages[i].Visible=i==index;navButtons[i].BackColor=i==index?Color.FromArgb(216,226,207):navigation.BackColor;navButtons[i].Font=new Font(Font.FontFamily,10,i==index?FontStyle.Bold:FontStyle.Regular);} pages[index].BringToFront(); }
-    Label L(string text, int x, int y, int width = 900, int size = 10) { return new Label { Text = text, Location = new Point(x, y), Size = new Size(width, text.Length > 60 ? 48 : 34), Font = new Font(Font.FontFamily, size), AutoEllipsis = true }; }
+    Label L(string text, int x, int y, int width = 900, int size = 10) {
+        var font = new Font(Font.FontFamily, size);
+        // Height follows the text as it actually wraps inside this width, so a
+        // long or multi-line string is never clipped to a guessed 34px box.
+        int height = Math.Max(34, TextRenderer.MeasureText(text, font, new Size(Math.Max(width - 4, 40), 100000), TextFormatFlags.WordBreak).Height + 8);
+        return new Label { Text = text, Location = new Point(x, y), Size = new Size(width, height), Font = font, AutoEllipsis = true };
+    }
     Button B(string text, int x, int y, EventHandler handler, int width = 155) { var b = new Button { Text = text, Location = new Point(x, y), Size = new Size(width, 42), BackColor = Color.FromArgb(33,77,60), ForeColor = Color.FromArgb(250,246,231), FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor=false }; b.FlatAppearance.BorderSize = 0; b.Click += handler; buttons.Add(b); return b; }
     void BuildOverview() {
         var p = Page(NiuLanguage.T("概览")); p.Controls.Add(L(NiuLanguage.T("钱包概览"), 36, 30, 500, 19));
         var card=new BanknotePanel {Location=new Point(36,70),Size=new Size(850,160),BackColor=Color.FromArgb(246,240,223)};p.Controls.Add(card);
         var caption=L(NiuLanguage.T("钱包总余额"),20,14,600);caption.ForeColor=Color.FromArgb(73,101,80);caption.BackColor=card.BackColor;card.Controls.Add(caption);
-        balance = L("— NIU", 20, 48, 600, 34);balance.Font=new Font("Georgia",34,FontStyle.Regular);balance.BackColor=card.BackColor;balance.ForeColor=Color.FromArgb(33,77,60);balance.Height = 66; card.Controls.Add(balance);
+        balance = L("— NIU", 20, 48, 600, 34);balance.Font=new Font("Georgia",34,FontStyle.Regular);balance.BackColor=card.BackColor;balance.ForeColor=Color.FromArgb(33,77,60);balance.Height = 78; card.Controls.Add(balance);
         string coinPath=Path.Combine(root,"assets","niu-gold-v4.png");if(File.Exists(coinPath))card.Controls.Add(new PictureBox {Image=Image.FromFile(coinPath),SizeMode=PictureBoxSizeMode.Zoom,Location=new Point(690,15),Size=new Size(130,130),BackColor=card.BackColor});
         // Incoming-payment banner. Hidden until a payment this wallet has not
         // announced before shows up confirmed in the ledger.
@@ -203,7 +236,7 @@ class WalletForm : Form {
         height = L(NiuLanguage.T("区块高度：—"), 36, 420); peerState = L(NiuLanguage.T("连接：—"), 36, 446); minerState = L(NiuLanguage.T("挖矿：—"), 36, 472);
         p.Controls.Add(height); p.Controls.Add(peerState); p.Controls.Add(minerState);
         p.Controls.Add(L(NiuLanguage.T("最近记录"), 36, 504, 500, 12));
-        recentList = new Label { Text = NiuLanguage.T("暂无记录"), Location = new Point(36, 532), Size = new Size(850, 56), Font = new Font("Consolas", 9), ForeColor = Color.FromArgb(71,68,58), AutoEllipsis = true };
+        recentList = new Label { Text = NiuLanguage.T("暂无记录"), Location = new Point(36, 532), Size = new Size(850, 74), Font = new Font("Consolas", 9), ForeColor = Color.FromArgb(71,68,58), AutoEllipsis = true };
         p.Controls.Add(recentList);
     }
     void BuildSend() {
@@ -233,10 +266,10 @@ class WalletForm : Form {
         var warning=L(NiuLanguage.T("扫描前确认网络。新增地址后，请重新导出完整备份。"),280,380,600);warning.Height=64;p.Controls.Add(warning);
     }
     string AskLabel(string title) {
-        using(var dialog=new Form {Text=title,ClientSize=new Size(460,150),FormBorderStyle=FormBorderStyle.FixedDialog,StartPosition=FormStartPosition.CenterParent,MinimizeBox=false,MaximizeBox=false,Font=Font}){
-            var input=new TextBox {Location=new Point(20,24),Width=420,MaxLength=40};dialog.Controls.Add(input);
-            var ok=new Button {Text=NiuLanguage.T("确定"),Location=new Point(240,88),Width=95,DialogResult=DialogResult.OK};dialog.Controls.Add(ok);
-            var cancel=new Button {Text=NiuLanguage.T("取消"),Location=new Point(345,88),Width=95,DialogResult=DialogResult.Cancel};dialog.Controls.Add(cancel);
+        using(var dialog=new Form {Text=title,ClientSize=new Size(U(460),U(150)),FormBorderStyle=FormBorderStyle.FixedDialog,StartPosition=FormStartPosition.CenterParent,MinimizeBox=false,MaximizeBox=false,Font=Font}){
+            var input=new TextBox {Location=new Point(U(20),U(24)),Width=U(420),MaxLength=40};dialog.Controls.Add(input);
+            var ok=new Button {Text=NiuLanguage.T("确定"),Location=new Point(U(240),U(88)),Width=U(95),DialogResult=DialogResult.OK};dialog.Controls.Add(ok);
+            var cancel=new Button {Text=NiuLanguage.T("取消"),Location=new Point(U(345),U(88)),Width=U(95),DialogResult=DialogResult.Cancel};dialog.Controls.Add(cancel);
             dialog.AcceptButton=ok;dialog.CancelButton=cancel;return dialog.ShowDialog(this)==DialogResult.OK?input.Text.Trim():null;
         }
     }
@@ -273,10 +306,10 @@ class WalletForm : Form {
         transactions.Columns.Add(NiuLanguage.T("交易哈希"), 128);
         transactions.SelectedIndexChanged += delegate { ShowTransactionDetail(); };
         p.Controls.Add(transactions);
-        var detail = new Panel { Location = new Point(36, 374), Size = new Size(878, 206), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        var detail = new Panel { Location = new Point(36, 374), Size = new Size(878, 222), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         detail.Controls.Add(new Label { Text = NiuLanguage.T("交易详情"), Location = new Point(14, 8), Size = new Size(400, 28), Font = new Font(Font.FontFamily, 11, FontStyle.Bold), ForeColor = Color.FromArgb(33,77,60) });
         txDetailHash = new Label { Text = NiuLanguage.T("请选择一笔交易"), Location = new Point(14, 40), Size = new Size(690, 28), Font = new Font("Consolas", 11), ForeColor = Color.FromArgb(123,115,91) };
-        txDetailMeta = new Label { Text = "", Location = new Point(14, 74), Size = new Size(848, 124), Font = new Font("Consolas", 9) };
+        txDetailMeta = new Label { Text = "", Location = new Point(14, 74), Size = new Size(848, 140), Font = new Font("Consolas", 9) };
         var copyHash = new Button { Text = NiuLanguage.T("复制哈希"), Location = new Point(720, 38), Size = new Size(142, 32), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(33,77,60), ForeColor = Color.FromArgb(250,246,231), UseVisualStyleBackColor = false };
         copyHash.FlatAppearance.BorderSize = 0;
         copyHash.Click += delegate {
@@ -288,36 +321,51 @@ class WalletForm : Form {
     }
     void BuildSettings() {
         var p = Page(NiuLanguage.T("设置"));
+        // Each row advances by its measured height, so longer translations or
+        // larger fonts push the layout down instead of overlapping the next row.
         // 左栏：备份与安全
-        p.Controls.Add(L(NiuLanguage.T("加密钱包备份"), 24, 24, 500, 17));
-        p.Controls.Add(L(NiuLanguage.T("本机密钥由 Windows 账户保护；导出的备份使用你设置的独立密码加密。"), 24, 62, 470, 9));
-        p.Controls.Add(L(NiuLanguage.T("私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。"), 24, 86, 470, 9));
-        p.Controls.Add(L(NiuLanguage.T("备份可用于换电脑或重装系统。文件和密码缺一不可，项目方无法找回密码。"), 24, 110, 470, 9));
-        backup = B(NiuLanguage.T("保存加密备份"), 24, 148, async delegate {
+        int y = 24;
+        var heading = L(NiuLanguage.T("加密钱包备份"), 24, y, 500, 17); p.Controls.Add(heading); y += heading.Height + 10;
+        foreach (string line in new string[] {
+                NiuLanguage.T("本机密钥由 Windows 账户保护；导出的备份使用你设置的独立密码加密。"),
+                NiuLanguage.T("私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。"),
+                NiuLanguage.T("备份可用于换电脑或重装系统。文件和密码缺一不可，项目方无法找回密码。") }) {
+            var item = L(line, 24, y, 470, 9); p.Controls.Add(item); y += item.Height + 6;
+        }
+        y += 8;
+        backup = B(NiuLanguage.T("保存加密备份"), 24, y, async delegate {
             if (!smoke && !await EnsureUnlocked()) return;
             string password = smoke ? "QA-only-" + Guid.NewGuid().ToString() : AskPassword(true);
             if (password == null) return;
             await Action(NiuLanguage.T("正在加密并校验备份…"), async delegate { var v = await Post("backup-portable", new { password = password }); backupPath.Text = S(v, "path"); Notify(NiuLanguage.T("备份已加密并通过回读校验。请将文件和密码分开保管。"), false); });
             password = null;
         }, 185); p.Controls.Add(backup);
-        p.Controls.Add(B(NiuLanguage.T("立即上锁"), 230, 148, async delegate { await Post("lock", new { }); LockWallet(); accountSignature = ""; Notify(NiuLanguage.T("钱包已上锁，私钥已从内存清除。"), false); }, 150));
-        backupPath.Location = new Point(24, 206); backupPath.Size = new Size(470, 56); backupPath.Multiline = true; backupPath.ReadOnly = true; p.Controls.Add(backupPath);
-        backupWarning=L("",24,272,470,9);backupWarning.Height=48;backupWarning.ForeColor=Color.FromArgb(149,92,31);p.Controls.Add(backupWarning);
-        p.Controls.Add(L(NiuLanguage.T("恢复：在新解压的钱包首次启动时选择“恢复备份”。不覆盖已有钱包。"), 24, 328, 470, 9));
-        p.Controls.Add(L(NiuLanguage.T("关于与网络"),24,382,470,12));
-        var about=L(NiuLanguage.T("本地开发网络：发行规则和朋友之间联网尚未完成，当前余额不承诺迁移。\nCore-Geth v1.12.23 · London EVM · 未签名，未独立审计。"),24,410,470,9);about.Height=76;p.Controls.Add(about);
+        p.Controls.Add(B(NiuLanguage.T("立即上锁"), backup.Right + 21, y, async delegate { await Post("lock", new { }); LockWallet(); accountSignature = ""; Notify(NiuLanguage.T("钱包已上锁，私钥已从内存清除。"), false); }, 150));
+        y += 42 + 14;
+        backupPath.Location = new Point(24, y); backupPath.Size = new Size(470, 56); backupPath.Multiline = true; backupPath.ReadOnly = true; p.Controls.Add(backupPath);
+        y += 56 + 12;
+        backupWarning=L("",24,y,470,9);backupWarning.Height=48;backupWarning.ForeColor=Color.FromArgb(149,92,31);p.Controls.Add(backupWarning);
+        y += 48 + 10;
+        var restore = L(NiuLanguage.T("恢复：在新解压的钱包首次启动时选择“恢复备份”。不覆盖已有钱包。"), 24, y, 470, 9); p.Controls.Add(restore); y += restore.Height + 18;
+        var aboutHeading = L(NiuLanguage.T("关于与网络"), 24, y, 470, 12); p.Controls.Add(aboutHeading); y += aboutHeading.Height + 6;
+        p.Controls.Add(L(NiuLanguage.T("本地开发网络：发行规则和朋友之间联网尚未完成，当前余额不承诺迁移。\nCore-Geth v1.12.23 · London EVM · 未签名，未独立审计。"), 24, y, 470, 9));
         // 右栏：链上留言与界面语言
-        p.Controls.Add(L(NiuLanguage.T("链上留言"), 560, 24, 400, 17));
-        p.Controls.Add(L(NiuLanguage.T("输入留言；部署与修改需要开启挖矿，并消耗测试NIU手续费。"), 560, 62, 390, 9));
-        message.Location = new Point(560, 98); message.Size = new Size(390, 70); message.Multiline = true; message.MaxLength = 160; message.Text = NiuLanguage.T("慢慢来，也很牛。"); p.Controls.Add(message);
-        deploy = B(NiuLanguage.T("部署留言合约"), 560, 182, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在部署合约并等待确认…"), async delegate { await Post("deploy", new { message = message.Text }); Notify(NiuLanguage.T("合约部署已确认。"), false); }); }, 185);
-        update = B(NiuLanguage.T("更新链上留言"), 765, 182, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在修改留言并等待确认…"), async delegate { await Post("message", new { message = message.Text }); Notify(NiuLanguage.T("链上留言已更新。"), false); }); }, 175);
+        int ry = 24;
+        var guestHeading = L(NiuLanguage.T("链上留言"), 560, ry, 400, 17); p.Controls.Add(guestHeading); ry += guestHeading.Height + 10;
+        var guestHint = L(NiuLanguage.T("输入留言；部署与修改需要开启挖矿，并消耗测试NIU手续费。"), 560, ry, 390, 9); p.Controls.Add(guestHint); ry += guestHint.Height + 8;
+        message.Location = new Point(560, ry); message.Size = new Size(390, 70); message.Multiline = true; message.MaxLength = 160; message.Text = NiuLanguage.T("慢慢来，也很牛。"); p.Controls.Add(message);
+        ry += 70 + 14;
+        deploy = B(NiuLanguage.T("部署留言合约"), 560, ry, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在部署合约并等待确认…"), async delegate { await Post("deploy", new { message = message.Text }); Notify(NiuLanguage.T("合约部署已确认。"), false); }); }, 185);
+        update = B(NiuLanguage.T("更新链上留言"), deploy.Right + 20, ry, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在修改留言并等待确认…"), async delegate { await Post("message", new { message = message.Text }); Notify(NiuLanguage.T("链上留言已更新。"), false); }); }, 175);
         p.Controls.Add(deploy); p.Controls.Add(update);
-        p.Controls.Add(L(NiuLanguage.T("当前链上留言"), 560, 238, 400, 9));
-        currentMessage = L(NiuLanguage.T("尚未部署"), 560, 264, 390, 12); currentMessage.Height = 56; p.Controls.Add(currentMessage);
-        contractAddress = L("", 560, 326, 390, 10); contractAddress.Font = new Font("Consolas", 9); p.Controls.Add(contractAddress);
-        p.Controls.Add(L(NiuLanguage.T("界面语言"),560,372,400,12));
-        languageChoice.Location=new Point(560,402);languageChoice.Width=390;
+        ry += 42 + 14;
+        var currentHeading = L(NiuLanguage.T("当前链上留言"), 560, ry, 400, 9); p.Controls.Add(currentHeading); ry += currentHeading.Height + 6;
+        currentMessage = L(NiuLanguage.T("尚未部署"), 560, ry, 390, 12); currentMessage.Height = 56; p.Controls.Add(currentMessage);
+        ry += 56 + 8;
+        contractAddress = L("", 560, ry, 390, 10); contractAddress.Font = new Font("Consolas", 9); p.Controls.Add(contractAddress);
+        ry += 34 + 14;
+        var languageHeading = L(NiuLanguage.T("界面语言"),560,ry,400,12); p.Controls.Add(languageHeading); ry += languageHeading.Height + 6;
+        languageChoice.Location=new Point(560,ry);languageChoice.Width=390;
         languageChoice.Height=34;languageChoice.BackColor=Color.White;languageChoice.ForeColor=Color.FromArgb(33,77,60);languageChoice.TextAlign=ContentAlignment.MiddleLeft;
         foreach(string code in NiuLanguage.Codes) {
             var item=new ToolStripMenuItem(NiuLanguage.Names[Array.IndexOf(NiuLanguage.Codes,code)]);item.Tag=code;
@@ -329,7 +377,8 @@ class WalletForm : Form {
         }
         languageChoice.Click+=delegate {languageMenu.Show(languageChoice,new Point(0,languageChoice.Height));};
         p.Controls.Add(languageChoice);
-        var languageHint=L(NiuLanguage.T("切换立即生效，重启后保留；不改变地址、余额或链上留言。"),560,448,390,9);languageHint.Height=48;p.Controls.Add(languageHint);
+        ry += 34 + 12;
+        p.Controls.Add(L(NiuLanguage.T("切换立即生效，重启后保留；不改变地址、余额或链上留言。"),560,ry,390,9));
     }
     // The vault holds private keys only while unlocked. Any signing action asks
     // for the wallet password first, so an unattended window cannot spend.
@@ -351,11 +400,11 @@ class WalletForm : Form {
     }
     void LockWallet() { walletUnlocked = false; }
     string AskWalletPassword() {
-        using (var dialog = new Form { Text = NiuLanguage.T("解锁钱包"), ClientSize = new Size(470, 190), FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, Font = Font }) {
-            dialog.Controls.Add(new Label { Text = NiuLanguage.T("私钥已加密，需要口令才能签名和转账。"), AutoSize = true, Location = new Point(20,20) });
-            var password = new TextBox { Location = new Point(20,58), Width = 425, UseSystemPasswordChar = true, MaxLength = 256 }; dialog.Controls.Add(password);
-            var ok = new Button { Text = NiuLanguage.T("解锁"), Location = new Point(245,130), Width = 95 }; dialog.Controls.Add(ok);
-            var cancel = new Button { Text = NiuLanguage.T("取消"), DialogResult = DialogResult.Cancel, Location = new Point(350,130), Width = 95 }; dialog.Controls.Add(cancel);
+        using (var dialog = new Form { Text = NiuLanguage.T("解锁钱包"), ClientSize = new Size(U(470), U(190)), FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, Font = Font }) {
+            dialog.Controls.Add(new Label { Text = NiuLanguage.T("私钥已加密，需要口令才能签名和转账。"), AutoSize = true, Location = new Point(U(20),U(20)) });
+            var password = new TextBox { Location = new Point(U(20),U(58)), Width = U(425), UseSystemPasswordChar = true, MaxLength = 256 }; dialog.Controls.Add(password);
+            var ok = new Button { Text = NiuLanguage.T("解锁"), Location = new Point(U(245),U(130)), Width = U(95) }; dialog.Controls.Add(ok);
+            var cancel = new Button { Text = NiuLanguage.T("取消"), DialogResult = DialogResult.Cancel, Location = new Point(U(350),U(130)), Width = U(95) }; dialog.Controls.Add(cancel);
             ok.Click += delegate { if (password.Text.Length < 12) { MessageBox.Show(dialog,NiuLanguage.T("口令至少12个字符。"),NiuLanguage.T("请检查口令")); return; } dialog.DialogResult = DialogResult.OK; };
             dialog.AcceptButton = ok; dialog.CancelButton = cancel;
             if (dialog.ShowDialog(this) != DialogResult.OK) return null;
@@ -363,13 +412,13 @@ class WalletForm : Form {
         }
     }
     string AskPassword(bool confirm) {
-        using (var dialog = new Form { Text = confirm ? NiuLanguage.T("设置备份密码") : NiuLanguage.T("输入备份密码"), ClientSize = new Size(470, 240), FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, Font = Font }) {
-            dialog.Controls.Add(new Label { Text = NiuLanguage.T("至少12个字符。请妥善保存，丢失后无法恢复。"), AutoSize = true, Location = new Point(20,20) });
-            var password = new TextBox { Location = new Point(20,60), Width = 425, UseSystemPasswordChar = true, MaxLength = 256 }; dialog.Controls.Add(password);
-            var repeated = new TextBox { Location = new Point(20,120), Width = 425, UseSystemPasswordChar = true, MaxLength = 256, Visible = confirm }; dialog.Controls.Add(repeated);
-            if (confirm) dialog.Controls.Add(new Label { Text = NiuLanguage.T("再次输入密码"), AutoSize = true, Location = new Point(20,96) });
-            var ok = new Button { Text = NiuLanguage.T("确定"), Location = new Point(245,180), Width = 95 }; dialog.Controls.Add(ok);
-            var cancel = new Button { Text = NiuLanguage.T("取消"), DialogResult = DialogResult.Cancel, Location = new Point(350,180), Width = 95 }; dialog.Controls.Add(cancel);
+        using (var dialog = new Form { Text = confirm ? NiuLanguage.T("设置备份密码") : NiuLanguage.T("输入备份密码"), ClientSize = new Size(U(470), U(240)), FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, Font = Font }) {
+            dialog.Controls.Add(new Label { Text = NiuLanguage.T("至少12个字符。请妥善保存，丢失后无法恢复。"), AutoSize = true, Location = new Point(U(20),U(20)) });
+            var password = new TextBox { Location = new Point(U(20),U(60)), Width = U(425), UseSystemPasswordChar = true, MaxLength = 256 }; dialog.Controls.Add(password);
+            var repeated = new TextBox { Location = new Point(U(20),U(120)), Width = U(425), UseSystemPasswordChar = true, MaxLength = 256, Visible = confirm }; dialog.Controls.Add(repeated);
+            if (confirm) dialog.Controls.Add(new Label { Text = NiuLanguage.T("再次输入密码"), AutoSize = true, Location = new Point(U(20),U(96)) });
+            var ok = new Button { Text = NiuLanguage.T("确定"), Location = new Point(U(245),U(180)), Width = U(95) }; dialog.Controls.Add(ok);
+            var cancel = new Button { Text = NiuLanguage.T("取消"), DialogResult = DialogResult.Cancel, Location = new Point(U(350),U(180)), Width = U(95) }; dialog.Controls.Add(cancel);
             ok.Click += delegate { if (password.Text.Length < 12 || (confirm && password.Text != repeated.Text)) { MessageBox.Show(dialog,NiuLanguage.T("密码至少12个字符，且两次输入必须一致。"),NiuLanguage.T("请检查密码")); return; } dialog.DialogResult = DialogResult.OK; };
             dialog.AcceptButton = ok; dialog.CancelButton = cancel;
             if (dialog.ShowDialog(this) != DialogResult.OK) return null;
