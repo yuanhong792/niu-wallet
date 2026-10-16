@@ -132,5 +132,15 @@
   "语言设置保存失败，请检查当前用户的应用数据目录权限。": "No se pudo guardar el idioma. Revise los permisos de la carpeta de datos del usuario.",
   "转账": "Transferencia",
   "部署合约": "Desplegar contrato",
-  "更新留言": "Actualizar mensaje"
+  "更新留言": "Actualizar mensaje",
+  "立即上锁": "Bloquear ahora",
+  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。离开电脑前请点“立即上锁”。": "Las claves privadas solo se cargan en memoria mientras la cartera está desbloqueada. Se bloquea sola tras unos 5 minutos de inactividad. Bloquéala antes de alejarte.",
+  "解锁钱包": "Desbloquear cartera",
+  "私钥已加密，需要口令才能签名和转账。": "Las claves privadas están cifradas. Introduce tu contraseña para firmar y enviar.",
+  "解锁": "Desbloquear",
+  "口令至少12个字符。": "La contraseña debe tener al menos 12 caracteres.",
+  "钱包已解锁，请保管好当前窗口。": "Cartera desbloqueada. Mantén esta ventana segura.",
+  "正在解锁钱包…": "Desbloqueando la cartera…",
+  "钱包已上锁，私钥已从内存清除。": "Cartera bloqueada. Las claves privadas se borraron de la memoria.",
+  "请检查口令": "Revisa la contraseña"
 }

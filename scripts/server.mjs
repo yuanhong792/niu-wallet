@@ -45,6 +45,8 @@ const server=http.createServer(async(req,res)=>{
         return json(res,200,await lab.mine(data.enabled));
       }
       if(url.pathname==='/api/transfer')return json(res,200,await lab.transfer(data.to,data.amount,data.from));
+      if(url.pathname==='/api/unlock')return json(res,200,await lab.unlock(data.password));
+      if(url.pathname==='/api/lock'){lab.lock();return json(res,200,{locked:true});}
       if(url.pathname==='/api/new-address')return json(res,200,await lab.newAddress(data.label));
       if(url.pathname==='/api/contact')return json(res,200,await lab.saveContact(data.address,data.label));
       if(url.pathname==='/api/deploy')return json(res,200,await lab.deploy(data.message));

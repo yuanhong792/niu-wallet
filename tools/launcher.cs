@@ -189,7 +189,7 @@ class WalletForm : Form {
         contactBook.SelectedIndexChanged+=delegate{if(contactBook.SelectedIndex>=0&&contactBook.SelectedIndex<contactAddresses.Count)sendTo.Text=contactAddresses[contactBook.SelectedIndex];};
         fill=B(NiuLanguage.T("保存到地址簿"),636,252,async delegate{string label=AskLabel(NiuLanguage.T("联系人备注"));if(label==null)return;await Action(NiuLanguage.T("正在保存联系人…"),async delegate{await Post("contact",new {address=sendTo.Text.Trim(),label=label});Notify(NiuLanguage.T("联系人已保存，可从地址簿选择。"),false);});},220);p.Controls.Add(fill);
         p.Controls.Add(L(NiuLanguage.T("数量（NIU，最多18位小数）"),36,324));amount.Location=new Point(36,360);amount.Width=300;amount.Text="0.1";p.Controls.Add(amount);
-        send=B(NiuLanguage.T("签名并发送"),36,422,async delegate{await Action(NiuLanguage.T("正在发送并等待区块确认…"),async delegate{
+        send=B(NiuLanguage.T("签名并发送"),36,422,async delegate{if(!await EnsureUnlocked())return;await Action(NiuLanguage.T("正在发送并等待区块确认…"),async delegate{
             string from=sendAccounts.SelectedIndex>=0&&sendAccounts.SelectedIndex<ownedAddresses.Count?ownedAddresses[sendAccounts.SelectedIndex]:address;
             if(!smoke&&MessageBox.Show(this,NiuLanguage.T("发送地址：")+from+NiuLanguage.T("\n收款地址：")+sendTo.Text.Trim()+NiuLanguage.T("\n数量：")+amount.Text.Trim()+NiuLanguage.T(" NIU\n\n确认后签名并广播，交易还需要支付手续费。"),NiuLanguage.T("确认转账"),MessageBoxButtons.OKCancel,MessageBoxIcon.Question)!=DialogResult.OK)return;
             await Post("transfer",new {to=sendTo.Text.Trim(),amount=amount.Text.Trim(),from=from});Notify(NiuLanguage.T("交易已入块，可在交易记录中查看确认数。"),false);
@@ -200,7 +200,7 @@ class WalletForm : Form {
         var p = Page(NiuLanguage.T("接收")); p.Controls.Add(L(NiuLanguage.T("接收 NIU"), 36, 30, 500, 19));
         p.Controls.Add(L(NiuLanguage.T("我的收款地址"),36,88));receiveAccounts.Location=new Point(36,124);receiveAccounts.Width=620;receiveAccounts.DropDownStyle=ComboBoxStyle.DropDownList;p.Controls.Add(receiveAccounts);
         receiveAccounts.SelectedIndexChanged+=delegate{UpdateReceiveAddress();};
-        p.Controls.Add(B(NiuLanguage.T("新增收款地址"),680,118,async delegate{string label=AskLabel(NiuLanguage.T("收款地址备注（可留空）"));if(label==null)return;await Action(NiuLanguage.T("正在创建并加密保存地址…"),async delegate{var created=await Post("new-address",new {label=label});accountSignature="";Notify(NiuLanguage.T("新地址已保存。请重新导出备份，旧备份不包含新地址。"),false);});},180));
+        p.Controls.Add(B(NiuLanguage.T("新增收款地址"),680,118,async delegate{if(!await EnsureUnlocked())return;string label=AskLabel(NiuLanguage.T("收款地址备注（可留空）"));if(label==null)return;await Action(NiuLanguage.T("正在创建并加密保存地址…"),async delegate{var created=await Post("new-address",new {label=label});accountSignature="";Notify(NiuLanguage.T("新地址已保存。请重新导出备份，旧备份不包含新地址。"),false);});},180));
         receiveAddress=L(NiuLanguage.T("正在读取…"),36,186);receiveAddress.Font=new Font("Consolas",12);p.Controls.Add(receiveAddress);
         p.Controls.Add(B(NiuLanguage.T("复制收款地址"),36,240,delegate{try{if(qrAddress.Length!=42)throw new Exception();Clipboard.SetText(qrAddress);Notify(NiuLanguage.T("收款地址已复制。"),false);}catch{Notify(NiuLanguage.T("地址尚未就绪或复制失败。"),true);}}));
         receiveQr.Location=new Point(36,310);receiveQr.Size=new Size(200,200);receiveQr.SizeMode=PictureBoxSizeMode.Zoom;receiveQr.BackColor=Color.White;p.Controls.Add(receiveQr);
@@ -239,8 +239,8 @@ class WalletForm : Form {
         var p = Page(NiuLanguage.T("智能合约")); p.Controls.Add(L(NiuLanguage.T("Solidity 留言合约"), 24, 24, 500, 17));
         p.Controls.Add(L(NiuLanguage.T("输入留言；部署与修改需要开启挖矿，并消耗测试NIU手续费。"), 24, 80));
         message.Location = new Point(24, 122); message.Size = new Size(820, 90); message.Multiline = true; message.MaxLength = 160; message.Text = NiuLanguage.T("慢慢来，也很牛。"); p.Controls.Add(message);
-        deploy = B(NiuLanguage.T("部署留言合约"), 24, 238, async delegate { await Action(NiuLanguage.T("正在部署合约并等待确认…"), async delegate { await Post("deploy", new { message = message.Text }); Notify(NiuLanguage.T("合约部署已确认。"), false); }); });
-        update = B(NiuLanguage.T("更新链上留言"), 200, 238, async delegate { await Action(NiuLanguage.T("正在修改留言并等待确认…"), async delegate { await Post("message", new { message = message.Text }); Notify(NiuLanguage.T("链上留言已更新。"), false); }); });
+        deploy = B(NiuLanguage.T("部署留言合约"), 24, 238, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在部署合约并等待确认…"), async delegate { await Post("deploy", new { message = message.Text }); Notify(NiuLanguage.T("合约部署已确认。"), false); }); });
+        update = B(NiuLanguage.T("更新链上留言"), 200, 238, async delegate { if(!await EnsureUnlocked())return; await Action(NiuLanguage.T("正在修改留言并等待确认…"), async delegate { await Post("message", new { message = message.Text }); Notify(NiuLanguage.T("链上留言已更新。"), false); }); });
         p.Controls.Add(deploy); p.Controls.Add(update); p.Controls.Add(L(NiuLanguage.T("当前链上留言"), 24, 306));
         currentMessage = L(NiuLanguage.T("尚未部署"), 24, 346, 900, 15); currentMessage.Height = 56; p.Controls.Add(currentMessage);
         contractAddress = L("", 24, 420); contractAddress.Font = new Font("Consolas", 10); p.Controls.Add(contractAddress);
@@ -248,8 +248,11 @@ class WalletForm : Form {
     void BuildBackup() {
         var p = Page(NiuLanguage.T("备份与设置")); p.Controls.Add(L(NiuLanguage.T("加密钱包备份"), 24, 24, 500, 17));
         p.Controls.Add(L(NiuLanguage.T("本机密钥由 Windows 账户保护；导出的备份使用你设置的独立密码加密。"), 24, 90));
+        p.Controls.Add(L(NiuLanguage.T("私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。离开电脑前请点“立即上锁”。"), 24, 112));
+        p.Controls.Add(B(NiuLanguage.T("立即上锁"), 700, 130, async delegate { await Post("lock", new { }); LockWallet(); accountSignature = ""; Notify(NiuLanguage.T("钱包已上锁，私钥已从内存清除。"), false); }, 150));
         p.Controls.Add(L(NiuLanguage.T("备份可用于换电脑或重装系统。文件和密码缺一不可，项目方无法找回密码。"), 24, 130));
         backup = B(NiuLanguage.T("保存加密备份"), 24, 190, async delegate {
+            if (!smoke && !await EnsureUnlocked()) return;
             string password = smoke ? "QA-only-" + Guid.NewGuid().ToString() : AskPassword(true);
             if (password == null) return;
             await Action(NiuLanguage.T("正在加密并校验备份…"), async delegate { var v = await Post("backup-portable", new { password = password }); backupPath.Text = S(v, "path"); Notify(NiuLanguage.T("备份已加密并通过回读校验。请将文件和密码分开保管。"), false); });
@@ -275,6 +278,37 @@ class WalletForm : Form {
         p.Controls.Add(languageChoice);
         var languageHint=L(NiuLanguage.T("切换立即生效，重启后保留；不改变地址、余额或链上留言。"),24,584,850,9);languageHint.Height=48;p.Controls.Add(languageHint);
 
+    }
+    // The vault holds private keys only while unlocked. Any signing action asks
+    // for the wallet password first, so an unattended window cannot spend.
+    bool walletUnlocked;
+    async Task<bool> EnsureUnlocked() {
+        if (walletUnlocked) return true;
+        if (smoke) { await Post("unlock", new { password = "QA-only-" + Guid.NewGuid().ToString() }); walletUnlocked = true; return true; }
+        string value = AskWalletPassword();
+        if (value == null) return false;
+        try {
+            await Action(NiuLanguage.T("正在解锁钱包…"), async delegate {
+                await Post("unlock", new { password = value });
+                walletUnlocked = true;
+            });
+            Notify(NiuLanguage.T("钱包已解锁，请保管好当前窗口。"), false);
+            return true;
+        } catch { return false; }
+        finally { value = null; }
+    }
+    void LockWallet() { walletUnlocked = false; }
+    string AskWalletPassword() {
+        using (var dialog = new Form { Text = NiuLanguage.T("解锁钱包"), ClientSize = new Size(470, 190), FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, Font = Font }) {
+            dialog.Controls.Add(new Label { Text = NiuLanguage.T("私钥已加密，需要口令才能签名和转账。"), AutoSize = true, Location = new Point(20,20) });
+            var password = new TextBox { Location = new Point(20,58), Width = 425, UseSystemPasswordChar = true, MaxLength = 256 }; dialog.Controls.Add(password);
+            var ok = new Button { Text = NiuLanguage.T("解锁"), Location = new Point(245,130), Width = 95 }; dialog.Controls.Add(ok);
+            var cancel = new Button { Text = NiuLanguage.T("取消"), DialogResult = DialogResult.Cancel, Location = new Point(350,130), Width = 95 }; dialog.Controls.Add(cancel);
+            ok.Click += delegate { if (password.Text.Length < 12) { MessageBox.Show(dialog,NiuLanguage.T("口令至少12个字符。"),NiuLanguage.T("请检查口令")); return; } dialog.DialogResult = DialogResult.OK; };
+            dialog.AcceptButton = ok; dialog.CancelButton = cancel;
+            if (dialog.ShowDialog(this) != DialogResult.OK) return null;
+            string value = password.Text; password.Clear(); return value;
+        }
     }
     string AskPassword(bool confirm) {
         using (var dialog = new Form { Text = confirm ? NiuLanguage.T("设置备份密码") : NiuLanguage.T("输入备份密码"), ClientSize = new Size(470, 240), FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false, Font = Font }) {
@@ -368,6 +402,9 @@ class WalletForm : Form {
     }
     void Render() {
         var wallets = A(state["wallets"]); var w = D(wallets[0]); address = S(w, "address"); recipient = S(D(wallets[1]), "address");
+        // Mirror the backend vault state so the button and prompts agree with
+        // what actually holds keys in memory right now.
+        walletUnlocked = !state.ContainsKey("locked") || !Convert.ToBoolean(state["locked"]);
         string total=state.ContainsKey("walletTotal")?S(state,"walletTotal"):S(w,"balance");
         decimal value; string text = Decimal.TryParse(total, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out value) ? value.ToString("0.########") : total;
         balance.Text = text + "  NIU"; overviewAddress.Text = address;
@@ -456,7 +493,7 @@ class WalletForm : Form {
         if (closing) return; poll.Stop(); Notify(NiuLanguage.T("正在停止节点并保存数据…"), false);
         try {
             if (!String.IsNullOrEmpty(token)) await Post("shutdown", new { });
-            if (backend != null && !backend.HasExited) await Task.Run(delegate { return backend.WaitForExit(30000); });
+            if (backend != null && !backend.HasExited) await Task.Run(delegate { return backend.WaitForExit(180000); });
             if (backend != null && !backend.HasExited) { Notify(NiuLanguage.T("节点仍在关闭，请稍候，不要强制结束进程。"), true); return; }
             // The process has exited. Do not wait indefinitely for inherited stdout
             // handles to close: that can strand the wallet and its single-instance mutex.
@@ -493,6 +530,7 @@ class WalletForm : Form {
                     File.WriteAllText(Path.Combine(root,"runtime","http-security-qa.json"),output.Result,Encoding.UTF8);
                 }
             });
+            if(!smoke&&!await EnsureUnlocked())return;
             var added=await Post("new-address",new {label=NiuLanguage.T("备用收款地址")});string addedAddress=S(added,"address");accountSignature="";await RefreshState();
             if(addedAddress==address||qrAddress!=addedAddress||!ownedAddresses.Contains(addedAddress))throw new Exception("New receive address or QR refresh failed");
             await Post("contact",new {address=recipient,label=NiuLanguage.T("朋友的钱包")});await RefreshState();contactBook.SelectedIndex=0;

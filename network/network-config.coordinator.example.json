@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "chainId": 26261017,
+  "networkId": 26261017,
+  "genesisHash": "0x9590d27e9e5977eb00bf1fd794d93fce0cac22dad04dc3f25fc072ab0c87e053",
+  "peers": [],
+  "allowPeerIPs": [],
+  "listenAddress": "0.0.0.0",
+  "advertiseIP": "替换为引导节点的公网IPv4",
+  "coordinator": true,
+  "restrictPeerIPs": false
+}

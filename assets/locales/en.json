@@ -132,5 +132,15 @@
   "语言设置保存失败，请检查当前用户的应用数据目录权限。": "Cannot save the language. Check access to the current user application data folder.",
   "转账": "Transfer",
   "部署合约": "Deploy contract",
-  "更新留言": "Update message"
+  "更新留言": "Update message",
+  "立即上锁": "Lock now",
+  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。离开电脑前请点“立即上锁”。": "Private keys load into memory only while unlocked. The wallet locks itself after about 5 minutes of inactivity. Lock it before you step away.",
+  "解锁钱包": "Unlock wallet",
+  "私钥已加密，需要口令才能签名和转账。": "Private keys are encrypted. Enter your password to sign and send.",
+  "解锁": "Unlock",
+  "口令至少12个字符。": "Password must be at least 12 characters.",
+  "钱包已解锁，请保管好当前窗口。": "Wallet unlocked. Keep this window secure.",
+  "正在解锁钱包…": "Unlocking wallet…",
+  "钱包已上锁，私钥已从内存清除。": "Wallet locked. Private keys were cleared from memory.",
+  "请检查口令": "Check password"
 }

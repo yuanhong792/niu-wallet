@@ -6,6 +6,7 @@ import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
+import {tmpdir} from 'node:os';
 import {validateNetwork} from '../scripts/network.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const args={};for(let i=2;i<process.argv.length;i+=2){if(!process.argv[i+1])throw Error('Missing argument value');args[process.argv[i]]=process.argv[i+1];}
@@ -38,8 +39,14 @@ copy(resolve(args['--node-license']),resolve(dest,'licenses/NODE-LICENSE.txt'));
 for(const name of ['COPYING','COPYING.LESSER'])copy(resolve(root,'node',name),resolve(dest,'licenses','CORE-GETH-'+name));
 const profile=validateNetwork({...JSON.parse(readFileSync(resolve(root,'network/network-config.example.json'),'utf8')),coordinator:true});
 writeFileSync(resolve(dest,'network-config.json'),JSON.stringify(profile,null,2));
-const compile=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',resolve(root,'tools/compile-launcher.ps1'),'-Source',resolve(root,'tools/launcher.cs'),'-Output',resolve(dest,'NiuWallet.exe')],{encoding:'utf8',windowsHide:true});
+// Add-Type emits the launcher with Assembly.LoadFrom, and .NET refuses to load
+// an assembly produced under a path with non-ASCII characters as if it were
+// remote (HRESULT 0x80131515). Build into the system temporary directory and
+// copy the result in, so a repository path like E:\牛币 still packages.
+const launcherTmp=resolve(tmpdir(),`niu-launcher-${tag}.exe`);
+const compile=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',resolve(root,'tools/compile-launcher.ps1'),'-Source',resolve(root,'tools/launcher.cs'),'-Output',launcherTmp],{encoding:'utf8',windowsHide:true});
 if(compile.status!==0)throw Error(compile.stderr||'Launcher compile failed');
+copy(launcherTmp,resolve(dest,'NiuWallet.exe'));
 const data=readFileSync(resolve(dest,'NiuWallet.exe')),pe=data.readUInt32LE(0x3c),optional=pe+24;
 if(data.toString('ascii',pe,pe+4)!=='PE\0\0'||data.readUInt16LE(optional+68)!==2)throw Error('Wallet is not a Windows GUI executable');
 writeFileSync(resolve(dest,'release-info.json'),JSON.stringify({version:tag,platform:'windows-x64',node:process.version,sourceCommit:git.stdout.trim(),sourceIncludesWorkingTree:true,consensusNodeSha256:sha(nodeBytes),walletSha256:sha(data),chainId:26261017,genesisHash:profile.genesisHash,

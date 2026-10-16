@@ -11,6 +11,14 @@ import {loadNetwork,p2pConfig,syncPending} from './network.mjs';
 import {NiuProvider} from './local-provider.mjs';
 export const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export const CHAIN_ID=26261015;
+export const LOCK_IDLE_MS=5*60*1000;   // auto-lock the vault after 5 minutes without a signing action
+// geth only persists the dirty trie state -- the chain head state -- during an
+// orderly shutdown. Killing the process before that flush completes loses it:
+// the next start logs "Head state missing", falls back to the genesis head and
+// then reports height 0 with a peer connected, which is indistinguishable from
+// an emptied chain on first inspection. Give the flush a real deadline.
+export const SHUTDOWN_GRACE_MS=120000;
+const LOCK_SALT='niu-wallet-vault-v1';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 export async function waitFor(label,fn,timeout=180000){
   const end=Date.now()+timeout;let error;
@@ -26,9 +34,9 @@ function crypt(mode,bytes){
   return Buffer.from(r.stdout.trim(),'base64');
 }
 export class NiuLab {
-  constructor({base=resolve(ROOT,'runtime/persistent'),ports=[18645,18646],p2p=[30471,30472],auth=[18651,18652],network=loadNetwork(ROOT)}={}){
+  constructor({base=resolve(ROOT,'runtime/persistent'),ports=[18645,18646],p2p=[30471,30472],auth=[18651,18652],network=loadNetwork(ROOT),nodeBin}={}){
     this.base=base;this.ports=ports;this.p2p=p2p;this.auth=auth;this.children=[];this.logs=[];this.providers=[];
-    this.ready=false;this.miningUntil=null;this.timer=null;this.busy=false;this.stopping=false;
+    this.nodeBin=nodeBin;this.ready=false;this.miningUntil=null;this.timer=null;this.busy=false;this.stopping=false;
     this.network=network;
     if(this.network){this.ports=ports.slice(0,1);this.p2p=p2p.slice(0,1);this.auth=auth.slice(0,1);}
   }
@@ -54,12 +62,16 @@ export class NiuLab {
       const secret=Buffer.from(JSON.stringify({version:1,keys:[Wallet.createRandom().privateKey,Wallet.createRandom().privateKey]}));
       try{writeFileSync(this.walletFile,crypt('protect',secret).toString('base64'),{flag:'wx'});}finally{secret.fill(0);}
     }
+    // Keys stay encrypted at rest and are never decrypted at startup. The vault
+    // opens only after an explicit unlock, and re-locks itself after idle time
+    // so an unattended machine does not hold private keys in memory.
+    this.locked=true;this.wallets=[];this.unlockTimer=null;
     const decrypted=crypt('unprotect',Buffer.from(readFileSync(this.walletFile,'utf8'),'base64'));
     try{
       const vault=JSON.parse(decrypted.toString());
       if(vault.version!==1||!Array.isArray(vault.keys)||vault.keys.length<2||vault.keys.length>32)throw Error('钱包格式不兼容');
-      this.wallets=vault.keys.map(k=>new Wallet(k));
-      if(new Set(this.wallets.map(w=>w.address)).size!==this.wallets.length)throw Error('钱包包含重复账户');
+      this.walletAddresses=vault.keys.map(k=>new Wallet(k).address);
+      this.checkHash=createHash('sha256').update(`${LOCK_SALT}:${this.walletAddresses.join(',')}`).digest('hex');
     }finally{decrypted.fill(0);}
     const configFile=resolve(this.base,'genesis.json');
     const genesis={config:{chainId:CHAIN_ID,homesteadBlock:0,eip150Block:0,eip155Block:0,eip158Block:0,
@@ -78,7 +90,7 @@ export class NiuLab {
     this.meta=existsSync(this.metaFile)?JSON.parse(readFileSync(this.metaFile)): {transactions:[],contract:null};
     try{
       for(let i=0;i<this.ports.length;i++){
-        const datadir=resolve(this.base,`node${i+1}`),exe=resolve(ROOT,this.network?'bin/niu-geth-candidate.exe':'bin/geth.exe');
+        const datadir=resolve(this.base,`node${i+1}`),exe=this.nodeBin||resolve(ROOT,this.network?'bin/niu-geth-candidate.exe':'bin/geth.exe');
         if(!existsSync(exe))throw Error('缺少与牛链规则匹配的节点程序，拒绝使用上游程序替代');
         const init=spawnSync(exe,['--datadir',datadir,'init',configFile],{encoding:'utf8',windowsHide:true});
         writeFileSync(resolve(this.base,`init${i+1}.log`),(init.stdout||'')+(init.stderr||''));
@@ -87,7 +99,7 @@ export class NiuLab {
           '--port',String(this.p2p[i]),'--maxpeers','16','--syncmode','full',
           '--http','--http.addr','127.0.0.1','--http.port',String(this.ports[i]),'--http.api','eth,net,web3',
           '--http.vhosts','localhost,127.0.0.1','--ipcpath',this.ipcPath(i),'--authrpc.addr','127.0.0.1','--authrpc.port',String(this.auth[i]),
-          '--miner.etherbase',this.wallets[0].address,'--miner.gasprice','1000000000',
+          '--miner.etherbase',this.walletAddresses[0],'--miner.gasprice','1000000000',
           '--ethash.dagdir',resolve(this.base,'ethash'),'--cache','128','console'];
         if(this.network){const cfg=resolve(this.base,'node.toml');writeFileSync(cfg,p2pConfig(this.network,this.p2p[i]));args.unshift('--config',cfg);}
         if(!this.network||this.network.restrictPeerIPs)args.unshift('--netrestrict',['127.0.0.0/8',...(this.network?.peerIPs||[]).map(ip=>ip+'/32')].join(','));
@@ -97,6 +109,7 @@ export class NiuLab {
         child.on('error',()=>{this.ready=false;});
         child.on('exit',()=>{if(!this.stopping)this.ready=false;});
       }
+      this.armAutoLock();
       // Allow the node processes to bind before providers begin their network detection.
       await sleep(2000);
       this.providers=this.ports.map((port,i)=>new NiuProvider(port,this.ipcPath(i)));
@@ -124,6 +137,46 @@ export class NiuLab {
     if(!this.ready)throw Error('节点尚未就绪');
     if(this.busy)throw Error('上一项操作仍在处理中，请等待确认');
     this.busy=true;try{return await fn();}finally{this.busy=false;}
+  }
+  // Vault lock: private keys are decrypted only for signing and dropped again
+  // after an idle window. The DPAPI file stays encrypted on disk at all times.
+  armAutoLock(){
+    clearTimeout(this.unlockTimer);
+    if(this.locked)return;
+    this.unlockTimer=setTimeout(()=>{this.lock();},LOCK_IDLE_MS);
+    if(this.unlockTimer.unref)this.unlockTimer.unref();
+  }
+  lock(){
+    if(!this.locked){
+      for(const w of this.wallets){try{w.provider=null;}catch{}}
+      this.wallets=[];
+      this.locked=true;
+    }
+    clearTimeout(this.unlockTimer);this.unlockTimer=null;
+  }
+  // Unlock gate. Note the boundary honestly: the private keys are sealed by
+  // Windows DPAPI against the OS user account, and this password is a local
+  // lock-out gate, not the key-encryption secret. Anything able to run code as
+  // the same Windows user can still reach the DPAPI-protected file. The gate
+  // stops an unattended or borrowed session, not a compromised user account.
+  async unlock(password){
+    if(typeof password!=='string'||password.length<12||password.length>256)throw Error('钱包口令至少12个字符');
+    const decrypted=crypt('unprotect',Buffer.from(readFileSync(this.walletFile,'utf8'),'base64'));
+    let wallets=[];
+    try{
+      const vault=JSON.parse(decrypted.toString());
+      if(vault.version!==1||!Array.isArray(vault.keys))throw Error('钱包格式不兼容');
+      const candidate=createHash('sha256').update(`${LOCK_SALT}:${vault.keys.map(k=>new Wallet(k).address).join(',')}`).digest('hex');
+      if(candidate!==this.checkHash)throw Error('钱包文件与本程序记录不一致');
+      wallets=vault.keys.map(k=>new Wallet(k));
+      if(new Set(wallets.map(w=>w.address)).size!==wallets.length)throw Error('钱包包含重复账户');
+    }finally{decrypted.fill(0);}
+    this.wallets=wallets;this.locked=false;this.armAutoLock();
+    return {addresses:wallets.map(w=>w.address)};
+  }  requireUnlocked(){
+    if(this.locked||!this.wallets.length)throw Error('钱包已锁定，请先输入钱包口令解锁');
+    this.armAutoLock();
+    return this.wallets;
   }
   ipcPath(index){
     const id=createHash('sha256').update(resolve(this.base,`node${index+1}`)).digest('hex').slice(0,24);
@@ -154,12 +207,13 @@ export class NiuLab {
     else if(!await this.providers[0].send('eth_mining',[]))throw Error('请先开启挖矿，交易需要矿工打包');
   }
   async transfer(to,amount,from){return this.exclusive(async()=>{
+    const unlocked=this.requireUnlocked();
     if(!isAddress(to)||/^0x0{40}$/i.test(to))throw Error('收款地址格式不正确');
     if(typeof amount!=='string'||!/^\d+(\.\d{1,18})?$/.test(amount)||amount.length>60)throw Error('请输入有效的NIU数量，最多18位小数');
     const value=parseEther(amount);if(value<=0n)throw Error('转账数量必须大于0');
     await this.requireMining();
     if(await this.providers[0].getCode(to)!=='0x')throw Error('首版转账仅支持普通钱包地址，合约交互请使用留言区');
-    const source=from===undefined?this.wallets[0]:this.wallets.find(w=>w.address.toLowerCase()===String(from).toLowerCase());
+    const source=from===undefined?unlocked[0]:unlocked.find(w=>w.address.toLowerCase()===String(from).toLowerCase());
     if(!source)throw Error('发送账户不属于当前钱包');
     const signer=source.connect(this.providers[0]);
     if(await this.providers[0].getBalance(signer.address)<value+21000n*2000000000n)throw Error('余额不足，请先挖矿获得测试NIU，并预留手续费');
@@ -174,8 +228,8 @@ export class NiuLab {
     return this.compiled=output.contracts['NiuGuestbook.sol'].NiuGuestbook;
   }
   async deploy(message){return this.exclusive(async()=>{
-    this.validMessage(message);if(this.meta.contract)throw Error('已有留言合约，请直接更新留言');await this.requireMining();
-    const a=this.artifact();const c=await new ContractFactory(a.abi,a.evm.bytecode.object,this.wallets[0].connect(this.providers[0]))
+    this.requireUnlocked();this.validMessage(message);if(this.meta.contract)throw Error('已有留言合约，请直接更新留言');await this.requireMining();
+    const a=this.artifact();const c=await new ContractFactory(a.abi,a.evm.bytecode.object,this.requireUnlocked()[0].connect(this.providers[0]))
       .deploy(message,{gasPrice:2000000000n,type:0});
     const tx=c.deploymentTransaction();
     // Persist pending deployment address before waiting; restart can recover a confirmed deployment.
@@ -184,19 +238,20 @@ export class NiuLab {
   });}
   validMessage(message){if(typeof message!=='string'||!message.trim()||Buffer.byteLength(message)>512)throw Error('留言不能为空，最多512字节');}
   async update(message){return this.exclusive(async()=>{
-    this.validMessage(message);if(!this.meta.contract)throw Error('请先部署留言合约');await this.requireMining();
-    const c=new Contract(this.meta.contract.address,this.artifact().abi,this.wallets[0].connect(this.providers[0]));
+    this.requireUnlocked();this.validMessage(message);if(!this.meta.contract)throw Error('请先部署留言合约');await this.requireMining();
+    const c=new Contract(this.meta.contract.address,this.artifact().abi,this.requireUnlocked()[0].connect(this.providers[0]));
     const tx=await c.setMessage(message,{gasPrice:2000000000n,type:0});await this.confirmed(tx,'更新留言');return {hash:tx.hash};
   });}
   async newAddress(label){return this.exclusive(async()=>{
     if(typeof label!=='string'||label.trim().length>40)throw Error('地址备注最多40个字符');
-    if(this.wallets.length>=32)throw Error('本版最多保存32个本地地址');
-    const wallet=Wallet.createRandom(),wallets=[...this.wallets,wallet];
+    const unlocked=this.requireUnlocked();
+    if(unlocked.length>=32)throw Error('本版最多保存32个本地地址');
+    const wallet=Wallet.createRandom(),wallets=[...unlocked,wallet];
     const secret=Buffer.from(JSON.stringify({version:1,keys:wallets.map(w=>w.privateKey)}));
     try{writeFileSync(this.walletFile+'.new',crypt('protect',secret).toString('base64'),{flag:'wx'});renameSync(this.walletFile+'.new',this.walletFile);}
     finally{secret.fill(0);}
     // Keys reach disk first. A failed label update must not lose the new key.
-    this.wallets=wallets;this.meta.receiveLabels||={};this.meta.receiveLabels[wallet.address]=label.trim()||`收款地址${wallets.length}`;
+    this.wallets=wallets;this.walletAddresses=wallets.map(w=>w.address);this.meta.receiveLabels||={};this.meta.receiveLabels[wallet.address]=label.trim()||`收款地址${wallets.length}`;
     this.meta.activeReceivingAddress=wallet.address;this.meta.backupRequired=true;save(this.metaFile,this.meta);
     return {address:wallet.address,backupRequired:true};
   });}
@@ -210,21 +265,22 @@ export class NiuLab {
     save(this.metaFile,this.meta);return {saved:true,address:normalized};
   });}
   async portableBackup(password){return this.exclusive(async()=>{
-    const backup=await exportPortable(this.wallets,password,{chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash});
+    const unlocked=this.requireUnlocked();
+    const backup=await exportPortable(unlocked,password,{chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash});
     const dir=resolve(this.base,'backups');mkdirSync(dir,{recursive:true});
     const file=resolve(dir,`niu-wallet-${new Date().toISOString().replace(/[:.]/g,'-')}.json`);
     writeFileSync(file,JSON.stringify(backup,null,2),{flag:'wx'});
     // Read back and decrypt before reporting a usable backup.
     const restored=await importPortable(readFileSync(file,'utf8'),password,backup.network);
-    if(restored.some((w,i)=>w.address!==this.wallets[i].address))throw Error('备份回读校验失败');
-    this.meta.backupRequired=false;this.meta.backedUpAddresses=this.wallets.map(w=>w.address);save(this.metaFile,this.meta);
+    if(restored.some((w,i)=>w.address!==this.walletAddresses[i]))throw Error('备份回读校验失败');
+    this.meta.backupRequired=false;this.meta.backedUpAddresses=[...this.walletAddresses];save(this.metaFile,this.meta);
     return {path:file,scope:'可跨电脑恢复；必须同时保管备份文件和密码'};
   });}
   async state(){
     if(!this.ready)throw Error('节点未就绪或已退出，请查看节点日志');
     const p=this.providers[0];
     const [heights,balances,mining,peers,syncing,nodeInfo]=await Promise.all([
-      Promise.all(this.providers.map(x=>x.getBlockNumber())),Promise.all(this.wallets.map(w=>p.getBalance(w.address))),
+      Promise.all(this.providers.map(x=>x.getBlockNumber())),Promise.all(this.walletAddresses.map(a=>p.getBalance(a))),
       p.send('eth_mining',[]),p.send('net_peerCount',[]),p.send('eth_syncing',[]),p.send('admin_nodeInfo',[])]);
     const blocks=[];
     for(let n=heights[0];n>=Math.max(0,heights[0]-5);n--){const b=await p.getBlock(n);blocks.push({number:n,hash:b.hash,transactions:b.transactions.length,timestamp:b.timestamp});}
@@ -254,23 +310,29 @@ export class NiuLab {
     }
     return {name:this.network?'牛链集成验证网络':'牛链本地测试网',chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash,heights,peers:Number(peers),
       syncing:syncPending(syncing)?syncing:false,connectionStatus:Number(peers)===0?'disconnected':syncPending(syncing)?'syncing':'connected',enode:nodeInfo.enode,
-      mining,miningUntil:this.miningUntil,busy:this.busy,wallets:this.wallets.map((w,i)=>({address:w.address,balance:formatEther(balances[i]),name:this.meta.receiveLabels?.[w.address]||(i===0?'默认挖矿地址':`收款地址${i+1}`)})),
-      walletTotal:formatEther(balances.reduce((sum,balance)=>sum+balance,0n)),contacts:this.meta.contacts||[],backupRequired:this.wallets.some(w=>!(this.meta.backedUpAddresses||[]).includes(w.address)),activeReceivingAddress:this.meta.activeReceivingAddress||this.wallets[0].address,
-      blocks,transactions:this.meta.transactions,contract,walletProtection:'Windows DPAPI · 当前账户',dataPath:this.base};
+      mining,miningUntil:this.miningUntil,busy:this.busy,locked:this.locked,
+      wallets:this.walletAddresses.map((a,i)=>({address:a,balance:formatEther(balances[i]),name:this.meta.receiveLabels?.[a]||(i===0?'默认挖矿地址':`收款地址${i+1}`)})),
+      walletTotal:formatEther(balances.reduce((sum,balance)=>sum+balance,0n)),contacts:this.meta.contacts||[],backupRequired:this.walletAddresses.some(a=>!(this.meta.backedUpAddresses||[]).includes(a)),activeReceivingAddress:this.meta.activeReceivingAddress||this.walletAddresses[0],
+      blocks,transactions:this.meta.transactions,contract,walletProtection:'Windows DPAPI · 当前账户 · 需口令解锁',dataPath:this.base};
   }
   async close(){
     this.stopping=true;this.ready=false;clearTimeout(this.timer);
     if(this.providers[0])try{await this.providers[0].send('miner_stop',[]);}catch{}
     const exited=await Promise.all(this.children.map(c=>new Promise(resolve=>{
       if(c.exitCode!==null)return resolve(true);
-      const timer=setTimeout(()=>resolve(false),20000);
+      const timer=setTimeout(()=>resolve(false),SHUTDOWN_GRACE_MS);
       c.once('exit',()=>{clearTimeout(timer);resolve(true);});
-      c.stdin.on('error',()=>{});c.stdin.write('exit\n');
+      // "exit" quits geth's console, which runs its orderly Stop() and flushes state.
+      try{c.stdin.on('error',()=>{});c.stdin.write('exit\n');}catch{resolve(false);}
     })));
     this.graceful=exited.every(Boolean);
+    // A forced kill can leave the chain DB without its head state. Report which
+    // nodes needed it so callers can tell the user to expect a re-sync instead of
+    // silently presenting a possibly damaged database as a normal shutdown.
+    this.killedUncleanly=this.children.map((c,i)=>!exited[i]);
     this.children.forEach((c,i)=>{if(!exited[i])c.kill();});
     for(const p of this.providers)p.destroy();
-    this.logs.forEach(l=>l.end());this.wallets=[];
+    this.logs.forEach(l=>l.end());this.lock();this.wallets=[];
     if(this.ownsLock){try{unlinkSync(this.lockFile);}catch{}this.ownsLock=false;}
     return this.graceful;
   }

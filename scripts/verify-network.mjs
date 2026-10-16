@@ -7,7 +7,7 @@ import {NiuLab,ROOT,waitFor} from './lab.mjs';
 import {validateNetwork,syncPending} from './network.mjs';
 import {importPortable} from './portable-vault.mjs';
 const run=resolve(ROOT,'runtime','network-qa-'+Date.now());mkdirSync(run,{recursive:true});
-const profile={version:1,chainId:26261017,networkId:26261017,genesisHash:'0x043bbafa5a26f243e33370e05f90521b771848fc6edda8bf451d900041153869',
+const profile={version:1,chainId:26261017,networkId:26261017,genesisHash:'0x9590d27e9e5977eb00bf1fd794d93fce0cac22dad04dc3f25fc072ab0c87e053',
   peers:[],allowPeerIPs:[],listenAddress:'127.0.0.1',advertiseIP:null,coordinator:true,restrictPeerIPs:true};
 const a=new NiuLab({base:resolve(run,'a'),ports:[19345],p2p:[30971],auth:[19351],network:validateNetwork(profile)});
 let b;const report={status:'running',scope:'independent processes and keys on one physical computer; loopback only',checks:{}};

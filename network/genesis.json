@@ -18,9 +18,9 @@
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "extraData": "0x4e495520696e746567726174696f6e2072756c6573207631",
+  "extraData": "0x4e495520696e746567726174696f6e2072756c6573207632",
   "gasLimit": "0x1c9c380",
-  "difficulty": "0x20000",
+  "difficulty": "0x81b320",
   "alloc": {},
   "baseFeePerGas": "0x3b9aca00"
 }
