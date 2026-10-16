@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "error": null,
+  "ui": "Native Windows Forms desktop; sidebar navigation; no browser window launched",
+  "pages": 7,
+  "mining": false,
+  "chainId": 26261017,
+  "heights": [
+    0
+  ],
+  "walletTotal": "0.0",
+  "genesisHash": "0x043bbafa5a26f243e33370e05f90521b771848fc6edda8bf451d900041153869",
+  "address": "0x016b076B028991bba4fd8A1a6Cf4829735E001c3",
+  "qrPayload": "0xa84BcE089E5874653d6A0C9d962Bcc89B764D6DD",
+  "logo": true,
+  "screenshot": "desktop-wallet.png",
+  "at": "2026-10-16T01:23:10.7318477Z"
+}

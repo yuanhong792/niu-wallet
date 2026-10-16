@@ -1,0 +1,92 @@
+{
+  "checkedAt": "2026-10-16T01:24:02.302359+00:00",
+  "archive": "NIU-Wallet-0.3.3-owner-review-win-x64.zip",
+  "bytes": 123520271,
+  "sha256": "b310c51aa4f3cddcd6ffd35544e521964d6f233f39725e66c01949ea0abae1a2",
+  "zipCrcCheck": "passed",
+  "integrity": {
+    "status": "passed",
+    "files": 4255,
+    "peSubsystem": "Windows GUI (2)",
+    "walletSha256": "07edf3303ebcd05a37631511ad31bc5ef26a1850baa46556c97e610d1f02b223",
+    "nodeSha256": "6ea95784172b2f2edb59c20ad8b263b7b1d33a88d820079e0cf0606c014e204b",
+    "privateRuntimeIncluded": false,
+    "loopbackOnly": true,
+    "mainnet": false,
+    "miningWasStarted": false
+  },
+  "nativeDesktopCheck": {
+    "status": "passed",
+    "error": null,
+    "ui": "Native Windows Forms desktop; sidebar navigation; no browser window launched",
+    "pages": 7,
+    "mining": false,
+    "chainId": 26261017,
+    "heights": [
+      0
+    ],
+    "walletTotal": "0.0",
+    "genesisHash": "0x043bbafa5a26f243e33370e05f90521b771848fc6edda8bf451d900041153869",
+    "address": "0x016b076B028991bba4fd8A1a6Cf4829735E001c3",
+    "qrPayload": "0xa84BcE089E5874653d6A0C9d962Bcc89B764D6DD",
+    "logo": true,
+    "screenshot": "desktop-wallet.png",
+    "at": "2026-10-16T01:23:10.7318477Z"
+  },
+  "languageCheck": {
+    "status": "passed",
+    "checks": [
+      {
+        "language": "zh-CN",
+        "pages": 7,
+        "persistence": true,
+        "userInputPreserved": true
+      },
+      {
+        "language": "en",
+        "pages": 7,
+        "persistence": true,
+        "userInputPreserved": true
+      },
+      {
+        "language": "ja",
+        "pages": 7,
+        "persistence": true,
+        "userInputPreserved": true
+      },
+      {
+        "language": "ko",
+        "pages": 7,
+        "persistence": true,
+        "userInputPreserved": true
+      },
+      {
+        "language": "es",
+        "pages": 7,
+        "persistence": true,
+        "userInputPreserved": true
+      },
+      {
+        "language": "ru",
+        "pages": 7,
+        "persistence": true,
+        "userInputPreserved": true
+      }
+    ],
+    "backendStarted": false,
+    "at": "2026-10-16T01:23:35.3012901Z"
+  },
+  "shutdownAndReopen": "passed; both native QA processes exited normally with exit code 0",
+  "miningStartedDuringThisReleaseCheck": false,
+  "publicGitHubReleaseCreated": false,
+  "mainnetActivated": false,
+  "sourceUploadAllowed": true,
+  "formalInstallerReady": false,
+  "remaining": [
+    "independent wallet password lock and autolock",
+    "two physical computers networking",
+    "deep reorg and failure recovery",
+    "long duration difficulty simulation",
+    "software signing and independent security review"
+  ]
+}

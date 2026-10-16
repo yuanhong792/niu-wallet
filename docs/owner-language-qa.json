@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "language": "zh-CN",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "en",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "ja",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "ko",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "es",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    },
+    {
+      "language": "ru",
+      "pages": 7,
+      "persistence": true,
+      "userInputPreserved": true
+    }
+  ],
+  "backendStarted": false,
+  "at": "2026-10-16T01:23:35.3012901Z"
+}

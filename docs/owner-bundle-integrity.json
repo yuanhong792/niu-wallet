@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "files": 4255,
+  "peSubsystem": "Windows GUI (2)",
+  "walletSha256": "07edf3303ebcd05a37631511ad31bc5ef26a1850baa46556c97e610d1f02b223",
+  "nodeSha256": "6ea95784172b2f2edb59c20ad8b263b7b1d33a88d820079e0cf0606c014e204b",
+  "privateRuntimeIncluded": false,
+  "loopbackOnly": true,
+  "mainnet": false,
+  "miningWasStarted": false
+}

@@ -1,5 +1,7 @@
 # 牛币钱包 NIU Wallet
 
+<img src="assets/niu-gold-v4.png" alt="NIU 金币牛头 Logo" width="128">
+
 牛币独立 Windows 钱包项目。当前源码处于集成验收阶段，本仓库提供源码和开发资料，尚未发布正式安装包。
 
 > **发布阻断：** 原节点扫描的41条记录已完成逐条处理，复扫未发现可调用漏洞；[修复对照与扫描限制](docs/节点41条漏洞修复报告.md)。钱包口令锁与跨电脑验收尚未完成。当前仅提供源码，不发布正式安装包。详见 [安全状态](SECURITY.md)。
@@ -47,8 +49,10 @@
 运行模块验证：node --test scripts/network.test.mjs scripts/portable-vault.test.mjs scripts/restore-wallet.test.mjs
 ## 钱包界面
 
-![钱包概览](docs/images/desktop-wallet.png)
+![钱包概览](docs/images/desktop-wallet-gold.png)
 
 ![收款地址与二维码](docs/images/desktop-receive.png)
 
 语言功能与验收说明见 [多语言界面](docs/多语言界面.md)。白皮书 V2.0 保留编写时的安全状态；后续41条扫描记录处理以[修复对照](docs/节点41条漏洞修复报告.md)为准。
+
+首发预备包与第1个奖励区块的安排见[启动说明](docs/首发与第一区块.md)。本机私有预备包不属于公开正式发行。

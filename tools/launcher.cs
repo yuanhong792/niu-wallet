@@ -122,10 +122,10 @@ class WalletForm : Form {
     public WalletForm(bool test, bool languageTest = false) {
         smoke = test; Text = NiuLanguage.T("牛币钱包  NIU Wallet"); ClientSize = new Size(1180, 760); MinimumSize = new Size(1100, 740);
         StartPosition = FormStartPosition.CenterScreen; Font = new Font("Microsoft YaHei UI", 10); BackColor = Color.FromArgb(246,240,223);
-        string iconPath = Path.Combine(root, "assets", "niu-banknote-v2.ico");
+        string iconPath = Path.Combine(root, "assets", "niu-gold-v4.ico");
         if (File.Exists(iconPath)) Icon = new Icon(iconPath);
         var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.White, Padding = new Padding(24, 12, 24, 8) };
-        string logoPath = Path.Combine(root, "assets", "niu-banknote-v2.png");
+        string logoPath = Path.Combine(root, "assets", "niu-gold-v4.png");
         if (File.Exists(logoPath)) header.Controls.Add(new PictureBox { Image = Image.FromFile(logoPath), SizeMode = PictureBoxSizeMode.Zoom, Location = new Point(22, 13), Size = new Size(50, 50) });
         header.Controls.Add(new Label { Text = NiuLanguage.T("牛币钱包"), Font = new Font(Font.FontFamily, 18, FontStyle.Bold), AutoSize = true, Location = new Point(88, 20) });
         header.Controls.Add(new Label { Text = "NIU WALLET", Font = new Font("Segoe UI", 9, FontStyle.Bold), AutoSize = true, ForeColor = Color.FromArgb(123, 115, 91), Location = new Point(90, 52) });
@@ -174,7 +174,7 @@ class WalletForm : Form {
         var card=new BanknotePanel {Location=new Point(36,90),Size=new Size(850,190),BackColor=Color.FromArgb(246,240,223)};p.Controls.Add(card);
         var caption=L(NiuLanguage.T("钱包总余额"),20,20,600);caption.ForeColor=Color.FromArgb(73,101,80);caption.BackColor=card.BackColor;card.Controls.Add(caption);
         balance = L("— NIU", 20, 60, 600, 38);balance.Font=new Font("Georgia",38,FontStyle.Regular);balance.BackColor=card.BackColor;balance.ForeColor=Color.FromArgb(33,77,60);balance.Height = 72; card.Controls.Add(balance);
-        string coinPath=Path.Combine(root,"assets","niu-banknote-v2.png");if(File.Exists(coinPath))card.Controls.Add(new PictureBox {Image=Image.FromFile(coinPath),SizeMode=PictureBoxSizeMode.Zoom,Location=new Point(668,19),Size=new Size(150,150),BackColor=card.BackColor});
+        string coinPath=Path.Combine(root,"assets","niu-gold-v4.png");if(File.Exists(coinPath))card.Controls.Add(new PictureBox {Image=Image.FromFile(coinPath),SizeMode=PictureBoxSizeMode.Zoom,Location=new Point(668,19),Size=new Size(150,150),BackColor=card.BackColor});
         p.Controls.Add(L(NiuLanguage.T("默认挖矿地址"), 36, 304)); overviewAddress = L(NiuLanguage.T("正在读取…"), 36, 342); overviewAddress.Font = new Font("Consolas", 11); p.Controls.Add(overviewAddress);
         p.Controls.Add(B(NiuLanguage.T("发送 NIU"),36,402,delegate {SelectPage(1);},150));p.Controls.Add(B(NiuLanguage.T("接收 NIU"),204,402,delegate {SelectPage(2);},150));
         height = L(NiuLanguage.T("区块高度：—"), 36, 466); peerState = L(NiuLanguage.T("连接：—"), 36, 508); minerState = L(NiuLanguage.T("挖矿：—"), 350, 508, 400);
@@ -333,8 +333,8 @@ class WalletForm : Form {
             outputLog = new StreamWriter(Path.Combine(root, "runtime", "desktop-console.log"), true, Encoding.UTF8) { AutoFlush = true };
             errorLog = new StreamWriter(Path.Combine(root, "runtime", "desktop-error.log"), true, Encoding.UTF8) { AutoFlush = true };
             backend = new Process(); backend.StartInfo = new ProcessStartInfo(Path.Combine(root, "engine", "node.exe"), "scripts/server.mjs") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
-            backend.OutputDataReceived += delegate(object s, DataReceivedEventArgs e) { if (e.Data != null) { lock (outputLog) outputLog.WriteLine(e.Data); } };
-            backend.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e) { if (e.Data != null) { lock (errorLog) errorLog.WriteLine(e.Data); } };
+            backend.OutputDataReceived += delegate(object s, DataReceivedEventArgs e) { if (e.Data != null) { lock (outputLog) { if (!closing) outputLog.WriteLine(e.Data); } } };
+            backend.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e) { if (e.Data != null) { lock (errorLog) { if (!closing) errorLog.WriteLine(e.Data); } } };
             backend.Start(); backend.BeginOutputReadLine(); backend.BeginErrorReadLine();
             DateTime limit = DateTime.UtcNow.AddSeconds(90);
             while (DateTime.UtcNow < limit) {
@@ -458,12 +458,21 @@ class WalletForm : Form {
             if (!String.IsNullOrEmpty(token)) await Post("shutdown", new { });
             if (backend != null && !backend.HasExited) await Task.Run(delegate { return backend.WaitForExit(30000); });
             if (backend != null && !backend.HasExited) { Notify(NiuLanguage.T("节点仍在关闭，请稍候，不要强制结束进程。"), true); return; }
-            if (backend != null) backend.WaitForExit();
-            closing = true; ready = false; if (outputLog != null) outputLog.Dispose(); if (errorLog != null) errorLog.Dispose(); Close();
+            // The process has exited. Do not wait indefinitely for inherited stdout
+            // handles to close: that can strand the wallet and its single-instance mutex.
+            closing = true; ready = false;
+            if (backend != null) {
+                try { backend.CancelOutputRead(); } catch (InvalidOperationException) { }
+                try { backend.CancelErrorRead(); } catch (InvalidOperationException) { }
+                backend.Dispose();
+            }
+            if (outputLog != null) { lock(outputLog) outputLog.Dispose(); }
+            if (errorLog != null) { lock(errorLog) errorLog.Dispose(); }
+            Close();
         } catch (Exception e) { Notify(NiuLanguage.T("关闭失败：") + e.Message, true); }
     }
     void SaveSmoke(bool passed, string error) {
-        var report = new { status = passed ? "passed" : "failed", error = error, ui = "Native Windows Forms desktop; sidebar navigation; no browser window launched", pages = pages.Count, mining = state == null ? (object)null : state["mining"], address = address, qrPayload = qrAddress, logo = File.Exists(Path.Combine(root,"assets","niu-logo.png")), screenshot = "desktop-wallet.png", at = DateTime.UtcNow.ToString("o") };
+        var report = new { status = passed ? "passed" : "failed", error = error, ui = "Native Windows Forms desktop; sidebar navigation; no browser window launched", pages = pages.Count, mining = state == null ? (object)null : state["mining"], chainId = state == null ? (object)null : state["chainId"], heights = state == null ? (object)null : state["heights"], walletTotal = state == null ? "" : S(state,"walletTotal"), genesisHash = state == null ? "" : S(state,"genesisHash"), address = address, qrPayload = qrAddress, logo = File.Exists(Path.Combine(root,"assets","niu-gold-v4.png")), screenshot = "desktop-wallet.png", at = DateTime.UtcNow.ToString("o") };
         File.WriteAllText(Path.Combine(root, "runtime", "desktop-qa.json"), serializer.Serialize(report), Encoding.UTF8);
     }
     async Task SmokeTest() {
