@@ -169,5 +169,16 @@
   "新到账": "Nuevo pago recibido",
   "本地时间": "Hora local",
   "确认中": "Confirmando",
-  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。": "Las claves privadas solo se cargan en memoria al desbloquear; la cartera se bloquea tras unos 5 minutos de inactividad."
+  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。": "Las claves privadas solo se cargan en memoria al desbloquear; la cartera se bloquea tras unos 5 minutos de inactividad.",
+  "连接中…": "Conectando…",
+  "已连接": "Conectado",
+  "正在同步": "Sincronizando",
+  "未连接": "Sin conexión",
+  "导入钱包备份": "Importar copia de seguridad",
+  "正在导入钱包备份…": "Importando la copia de seguridad…",
+  "钱包或备份文件 (*.json;*.dat;*.dpapi)|*.json;*.dat;*.dpapi": "Archivo de billetera o copia (*.json;*.dat;*.dpapi)|*.json;*.dat;*.dpapi",
+  "导入完成：新增 {0} 个地址，当前共 {1} 个地址。": "Importación completada: {0} dirección(es) añadidas, {1} en total.",
+  "备份中的地址均已存在于当前钱包，未新增。": "Todas las direcciones de la copia ya existen en esta billetera; no se añadió ninguna.",
+  "检测到链头回退：已自动恢复到区块 {0}（此前链头在区块 {1}）。": "Retroceso de la cadena detectado: restaurado automáticamente al bloque {0} (anterior {1}).",
+  "警告：链头回退到区块 {0}，且回退部分的状态数据已缺失，无法自动恢复。请保持钱包正常关闭（不要结束进程）；新挖矿将从当前链继续。": "Advertencia: la cabeza de la cadena retrocedió al bloque {0} y el estado de los bloques retrocedidos falta; no se puede restaurar automáticamente. Cierre la billetera normalmente (no termine el proceso a la fuerza); la minería continúa en la cadena actual."
 }

@@ -52,6 +52,7 @@ const server=http.createServer(async(req,res)=>{
       if(url.pathname==='/api/deploy')return json(res,200,await lab.deploy(data.message));
       if(url.pathname==='/api/message')return json(res,200,await lab.update(data.message));
       if(url.pathname==='/api/backup-portable')return json(res,200,await lab.portableBackup(data.password));
+      if(url.pathname==='/api/import-wallet')return json(res,200,await lab.importWalletFile(data.path,data.password??null));
     }
     json(res,404,{error:'页面不存在'});
   }catch(e){json(res,400,{error:e.shortMessage||e.message||'操作失败，请查看日志'});}

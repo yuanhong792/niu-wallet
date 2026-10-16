@@ -169,5 +169,16 @@
   "新到账": "New payment received",
   "本地时间": "Local time",
   "确认中": "Pending confirmation",
-  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。": "Private keys are loaded into memory only while unlocked; the wallet locks automatically after about 5 minutes idle."
+  "私钥仅在解锁时载入内存；空闲约5分钟会自动上锁。": "Private keys are loaded into memory only while unlocked; the wallet locks automatically after about 5 minutes idle.",
+  "连接中…": "Connecting…",
+  "已连接": "Connected",
+  "正在同步": "Syncing",
+  "未连接": "Offline",
+  "导入钱包备份": "Import wallet backup",
+  "正在导入钱包备份…": "Importing wallet backup…",
+  "钱包或备份文件 (*.json;*.dat;*.dpapi)|*.json;*.dat;*.dpapi": "Wallet or backup file (*.json;*.dat;*.dpapi)|*.json;*.dat;*.dpapi",
+  "导入完成：新增 {0} 个地址，当前共 {1} 个地址。": "Import complete: {0} address(es) added, {1} in total.",
+  "备份中的地址均已存在于当前钱包，未新增。": "All addresses in the backup already exist in this wallet; nothing was added.",
+  "检测到链头回退：已自动恢复到区块 {0}（此前链头在区块 {1}）。": "Chain head rollback detected: automatically restored to block {0} (previous head {1}).",
+  "警告：链头回退到区块 {0}，且回退部分的状态数据已缺失，无法自动恢复。请保持钱包正常关闭（不要结束进程）；新挖矿将从当前链继续。": "Warning: the chain head rolled back to block {0} and the state of the rolled-back blocks is missing, so it cannot be restored automatically. Close the wallet normally (do not kill the process); mining continues on the current chain."
 }

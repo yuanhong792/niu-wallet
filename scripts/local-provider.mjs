@@ -14,7 +14,7 @@ export class NiuProvider extends JsonRpcProvider {
     this.control.socket.on('close',()=>{this.controlFailure=true;});
   }
   async send(method,params){
-    if(method.startsWith('admin_')||method.startsWith('miner_')){
+    if(method.startsWith('admin_')||method.startsWith('miner_')||method.startsWith('debug_')){
       if(this.controlFailure)throw Error('本机节点IPC连接失败');
       let timer;
       try{return await Promise.race([this.control.send(method,params),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('本机节点控制超时')),15000);})]);}

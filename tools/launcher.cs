@@ -27,6 +27,31 @@ static class NiuDesktop {
 }
 
 
+// Dogecoin-style connection indicator for the footer: four rising bars filled
+// while the node has peers, a green check badge once the chain is fully synced.
+class SignalBars : Control {
+    public int Level; public bool Good;
+    public SignalBars() { SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true); }
+    protected override void OnPaint(PaintEventArgs e) {
+        var g = e.Graphics; g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        var active = Color.FromArgb(33, 77, 60); var idle = Color.FromArgb(211, 209, 197);
+        int w = ClientSize.Width, h = ClientSize.Height;
+        int bars = Math.Max(14, w - 16), barW = Math.Max(3, bars * 3 / 16), gap = Math.Max(2, bars / 16);
+        for (int i = 0; i < 4; i++) {
+            int bh = Math.Max(3, (i + 1) * (h - 4) / 4), x = i * (barW + gap);
+            using (var b = new SolidBrush(i < Level ? active : idle)) g.FillRectangle(b, x, h - 2 - bh, barW, bh);
+        }
+        if (Good) {
+            int d = Math.Max(12, h / 2), cx = w - d, cy = h - d;
+            using (var b = new SolidBrush(active)) g.FillEllipse(b, cx, cy, d, d);
+            using (var pen = new Pen(Color.White, Math.Max(1.6f, d / 6f))) {
+                g.DrawLine(pen, cx + d * 0.28f, cy + d * 0.52f, cx + d * 0.45f, cy + d * 0.70f);
+                g.DrawLine(pen, cx + d * 0.45f, cy + d * 0.70f, cx + d * 0.74f, cy + d * 0.30f);
+            }
+        }
+    }
+}
+
 static class NiuLanguage {
     public static readonly string[] Codes={"zh-CN","en","ja","ko","es","ru"};
     public static readonly string[] Names={"简体中文","English","日本語","한국어","Español","Русский"};
@@ -104,6 +129,9 @@ class WalletForm : Form {
     List<Panel> pages = new List<Panel>();
     List<Button> navButtons = new List<Button>();
     Label status = new Label(), balance = new Label(), height = new Label(), minerState = new Label(), peerState = new Label();
+    Label netState = new Label();
+    SignalBars netSignal = new SignalBars();
+    bool chainNotified;
     Label overviewAddress = new Label(), receiveAddress = new Label(), contractAddress = new Label(), currentMessage = new Label(), result = new Label();
     Label backupWarning = new Label();
     TextBox sendTo = new TextBox(), amount = new TextBox(), message = new TextBox(), backupPath = new TextBox();
@@ -162,7 +190,10 @@ class WalletForm : Form {
         var body = new Panel { Dock = DockStyle.Fill }; body.Controls.Add(workspace); body.Controls.Add(navigation);
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 46, BackColor = Color.FromArgb(248, 247, 242), Padding = new Padding(20, 10, 20, 8) };
         status.AutoEllipsis = true; status.Dock = DockStyle.Fill; status.Text = NiuLanguage.T("正在启动本机节点并读取加密钱包…"); status.ForeColor = Color.FromArgb(82, 96, 61);
-        footer.Controls.Add(status); footer.Controls.Add(new Label { Text = NiuLanguage.T("本机网络 · 开发中"), Dock = DockStyle.Right, Width = 300, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(123,115,91), Font = new Font(Font.FontFamily,9) });
+        netState.Dock = DockStyle.Right; netState.Width = 96; netState.TextAlign = ContentAlignment.MiddleRight;
+        netState.Text = NiuLanguage.T("连接中…"); netState.ForeColor = Color.FromArgb(123,115,91); netState.Font = new Font(Font.FontFamily, 9); netState.AutoEllipsis = true;
+        netSignal.Dock = DockStyle.Right; netSignal.Width = 40;
+        footer.Controls.Add(status); footer.Controls.Add(netState); footer.Controls.Add(netSignal);
         Controls.Add(body); Controls.Add(header); Controls.Add(footer);
         BuildOverview(); BuildSend(); BuildReceive(); BuildTransactions(); BuildSettings();
         foreach(var combo in new ComboBox[]{receiveAccounts,sendAccounts,contactBook}){
@@ -352,6 +383,22 @@ class WalletForm : Form {
         y += 56 + 12;
         backupWarning=L("",24,y,470,9);backupWarning.Height=48;backupWarning.ForeColor=Color.FromArgb(149,92,31);p.Controls.Add(backupWarning);
         y += 48 + 10;
+        var importButton = B(NiuLanguage.T("导入钱包备份"), 24, y, async delegate {
+            if (!await EnsureUnlocked()) return;
+            using (var picker = new OpenFileDialog { Filter = NiuLanguage.T("钱包或备份文件 (*.json;*.dat;*.dpapi)|*.json;*.dat;*.dpapi"), CheckFileExists = true, Title = NiuLanguage.T("导入钱包备份") }) {
+                if (picker.ShowDialog(this) != DialogResult.OK) return;
+                bool portable = picker.FileName.ToLowerInvariant().EndsWith(".json");
+                string password = portable ? AskPassword(false) : "";
+                if (password == null) return;
+                await Action(NiuLanguage.T("正在导入钱包备份…"), async delegate {
+                    var v = await Post("import-wallet", new { path = picker.FileName, password = password });
+                    int added, total; int.TryParse(S(v,"added"), out added); int.TryParse(S(v,"total"), out total);
+                    Notify(added > 0
+                        ? NiuLanguage.T("导入完成：新增 {0} 个地址，当前共 {1} 个地址。").Replace("{0}", added.ToString()).Replace("{1}", total.ToString())
+                        : NiuLanguage.T("备份中的地址均已存在于当前钱包，未新增。"), false);
+                });
+            }
+        }, 185); p.Controls.Add(importButton); y += 42 + 14;
         var restore = L(NiuLanguage.T("恢复：在新解压的钱包首次启动时选择“恢复备份”。不覆盖已有钱包。"), 24, y, 470, 9); p.Controls.Add(restore); y += restore.Height + 18;
         var aboutHeading = L(NiuLanguage.T("关于与网络"), 24, y, 470, 12); p.Controls.Add(aboutHeading); y += aboutHeading.Height + 6;
         p.Controls.Add(L(NiuLanguage.T("本地开发网络：发行规则和朋友之间联网尚未完成，当前余额不承诺迁移。\nCore-Geth v1.12.23 · London EVM · 未签名，未独立审计。"), 24, y, 470, 9));
@@ -530,6 +577,35 @@ class WalletForm : Form {
         var sync = state.ContainsKey("syncing") ? state["syncing"] as Dictionary<string,object> : null;
         if (sync != null) height.Text += NiuLanguage.T("       同步中  ") + S(sync,"currentBlock") + " / " + S(sync,"highestBlock");
         peerState.Text = NiuLanguage.T("节点连接  ") + state["peers"] + (S(state,"connectionStatus") == "disconnected" ? NiuLanguage.T(" · 未联网") : sync != null ? NiuLanguage.T(" · 正在同步") : NiuLanguage.T(" · 已连接"));
+        // Footer signal indicator mirrors the connection state at a glance.
+        string connectionStatus = S(state,"connectionStatus");
+        if (connectionStatus == "disconnected") {
+            netSignal.Level = 0; netSignal.Good = false;
+            netState.Text = NiuLanguage.T("未连接"); netState.ForeColor = Color.FromArgb(150,62,40);
+        } else if (sync != null) {
+            netSignal.Good = false;
+            netState.Text = NiuLanguage.T("正在同步"); netState.ForeColor = Color.FromArgb(149,92,31);
+            long current = ParseHexOrDec(S(sync,"currentBlock")), highest = ParseHexOrDec(S(sync,"highestBlock"));
+            netSignal.Level = highest > 0 ? (int)Math.Max(1, Math.Min(3, 4L * current / highest)) : 2;
+        } else {
+            netSignal.Level = 4; netSignal.Good = true;
+            netState.Text = NiuLanguage.T("已连接"); netState.ForeColor = Color.FromArgb(33,77,60);
+        }
+        netSignal.Invalidate();
+        // Tell the user plainly when a killed node rolled the head back and what
+        // the launcher did about it; never let a shorter chain look normal.
+        if (!chainNotified) {
+            var recovered = state.ContainsKey("chainRecovered") ? state["chainRecovered"] as Dictionary<string,object> : null;
+            var reset = state.ContainsKey("chainReset") ? state["chainReset"] as Dictionary<string,object> : null;
+            if (recovered != null) {
+                chainNotified = true;
+                Notify(NiuLanguage.T("检测到链头回退：已自动恢复到区块 {0}（此前链头在区块 {1}）。").Replace("{0}", S(recovered,"to")).Replace("{1}", S(recovered,"from")), false);
+            } else if (reset != null) {
+                chainNotified = true;
+                string warning = NiuLanguage.T("警告：链头回退到区块 {0}，且回退部分的状态数据已缺失，无法自动恢复。请保持钱包正常关闭（不要结束进程）；新挖矿将从当前链继续。").Replace("{0}", S(reset,"head"));
+                status.Text = warning; Notify(warning, true);
+            }
+        }
         bool active = Convert.ToBoolean(state["mining"]); minerState.Text = NiuLanguage.T("挖矿状态：") + (active ? NiuLanguage.T("挖矿中（最多十分钟）") : NiuLanguage.T("已停止")); mine.Text = active ? NiuLanguage.T("停止挖矿") : NiuLanguage.T("开启挖矿");
         // Ledger rows: colour by direction, keep the selection across refreshes,
         // and notice a confirmed payment that was not in the previous refresh.
@@ -575,6 +651,12 @@ class WalletForm : Form {
     string ShortHash(string hash) {
         if (String.IsNullOrEmpty(hash)) return "—";
         return hash.Length > 20 ? hash.Substring(0, 10) + "…" + hash.Substring(hash.Length - 6) : hash;
+    }
+    // geth reports counters either as decimal strings or 0x-hex; accept both.
+    long ParseHexOrDec(string text) {
+        if (String.IsNullOrEmpty(text)) return 0;
+        if (text.StartsWith("0x") || text.StartsWith("0X")) { long v; return long.TryParse(text.Substring(2), System.Globalization.NumberStyles.HexNumber, null, out v) ? v : 0; }
+        long d; return long.TryParse(text, out d) ? d : 0;
     }
     string LocalTime(string iso, bool full) {
         DateTime parsed;
@@ -646,7 +728,7 @@ class WalletForm : Form {
         languageChoice.Text=NiuLanguage.Names[Array.IndexOf(NiuLanguage.Codes,NiuLanguage.Current)]+"  ▼";
         foreach(ToolStripMenuItem item in languageMenu.Items)item.Checked=(string)item.Tag==NiuLanguage.Current;
         if(ready&&state!=null)Render();else {
-            foreach(var live in new Label[]{overviewAddress,receiveAddress,balance,height,peerState,minerState,backupWarning,currentMessage}) {
+            foreach(var live in new Label[]{overviewAddress,receiveAddress,balance,height,peerState,minerState,backupWarning,currentMessage,netState}) {
                 string key=NiuLanguage.Key(live.Text);if(key!=null)live.Text=NiuLanguage.T(key);
             }
             mine.Text=NiuLanguage.T("开启挖矿");

@@ -1,5 +1,5 @@
 import {spawn,spawnSync} from 'node:child_process';
-import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,createWriteStream,unlinkSync} from 'node:fs';
+import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,createWriteStream,unlinkSync,statSync} from 'node:fs';
 import net from 'node:net';
 import {createHash} from 'node:crypto';
 import {resolve,dirname} from 'node:path';
@@ -97,7 +97,7 @@ export class NiuLab {
         writeFileSync(resolve(this.base,`init${i+1}.log`),(init.stdout||'')+(init.stderr||''));
         if(init.status!==0)throw Error(`节点${i+1}初始化失败，详见日志。`);
         const args=['--datadir',datadir,'--networkid',String(this.network?.networkId||CHAIN_ID),'--nodiscover','--nat',this.network?.advertiseIP?`extip:${this.network.advertiseIP}`:'none',
-          '--port',String(this.p2p[i]),'--maxpeers','16','--syncmode','full',
+          '--port',String(this.p2p[i]),'--maxpeers','16','--syncmode','full','--gcmode','archive',
           '--http','--http.addr','127.0.0.1','--http.port',String(this.ports[i]),'--http.api','eth,net,web3',
           '--http.vhosts','localhost,127.0.0.1','--ipcpath',this.ipcPath(i),'--authrpc.addr','127.0.0.1','--authrpc.port',String(this.auth[i]),
           '--miner.etherbase',this.walletAddresses[0],'--miner.gasprice','1000000000',
@@ -130,9 +130,34 @@ export class NiuLab {
         if(Number((await p.getNetwork()).chainId)!==(this.network?.chainId||CHAIN_ID)||(await p.getBlock(0)).hash!==this.genesisHash||
           (this.network&&this.genesisHash.toLowerCase()!==this.network.genesisHash.toLowerCase()))throw Error('节点网络不匹配');
       }
+      await this.recoverHead();
       this.ready=true;
     }catch(e){await this.close();throw e;}
     } catch(e){if(this.ownsLock){try{unlinkSync(this.lockFile);}catch{}this.ownsLock=false;}throw e;}
+  }
+  // A killed node loses its un-flushed head state and geth re-anchors the head
+  // at genesis, which reads exactly like an emptied chain. The block data
+  // survives, and with --gcmode archive the historical states do too: re-point
+  // the head at the deepest block whose state is still readable. Never silently
+  // continue with a shorter chain -- report the outcome either way.
+  async recoverHead(){
+    const last=Math.floor(Number(this.meta&&this.meta.lastBlock||0));
+    if(!(last>0))return;
+    const p=this.providers[0];
+    const head=Number(await p.getBlockNumber());
+    if(head>=last)return;
+    const probe=last-head>20000?last-20000:head+1;
+    let target=0;
+    for(let n=last;n>=probe;n--){
+      try{await p.send('eth_getBalance',[this.walletAddresses[0],'0x'+n.toString(16)]);target=n;break;}catch{}
+    }
+    if(target>head){
+      for(const q of this.providers){
+        await q.send('debug_setHead',['0x'+target.toString(16)]);
+        if(Number(await q.getBlockNumber())!==target)throw Error('链头恢复校验失败');
+      }
+      this.chainRecovered={from:head,to:target};
+    }else this.chainReset={last,head};
   }
   async exclusive(fn){
     if(!this.ready)throw Error('节点尚未就绪');
@@ -261,6 +286,7 @@ export class NiuLab {
     finally{secret.fill(0);}
     // Keys reach disk first. A failed label update must not lose the new key.
     this.wallets=wallets;this.walletAddresses=wallets.map(w=>w.address);this.meta.receiveLabels||={};this.meta.receiveLabels[wallet.address]=label.trim()||`收款地址${wallets.length}`;
+    this.checkHash=createHash('sha256').update(`${LOCK_SALT}:${this.walletAddresses.join(',')}`).digest('hex');
     this.meta.activeReceivingAddress=wallet.address;this.meta.backupRequired=true;save(this.metaFile,this.meta);
     return {address:wallet.address,backupRequired:true};
   });}
@@ -285,6 +311,42 @@ export class NiuLab {
     this.meta.backupRequired=false;this.meta.backedUpAddresses=[...this.walletAddresses];save(this.metaFile,this.meta);
     return {path:file,scope:'可跨电脑恢复；必须同时保管备份文件和密码'};
   });}
+  // Import keys into the CURRENT wallet. Accepts either a portable encrypted
+  // backup (password protected, works across machines) or a same-machine vault
+  // file (wallet.dpapi / .dat, bound to this Windows account). Duplicate
+  // addresses are skipped; the merged vault is written atomically.
+  async importWalletFile(filePath,password){return this.exclusive(async()=>{
+    if(typeof filePath!=='string'||!filePath||statSync(filePath).size>131072)throw Error('钱包文件无效或过大');
+    const text=readFileSync(filePath,'utf8').trim();
+    let keys;
+    if(text.startsWith('{')){
+      const restored=await importPortable(text,password,{chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash});
+      keys=restored.map(w=>w.privateKey);
+    }else{
+      const decrypted=crypt('unprotect',Buffer.from(text,'base64'));
+      try{
+        const vault=JSON.parse(decrypted.toString());
+        if(vault.version!==1||!Array.isArray(vault.keys)||!vault.keys.length)throw Error('钱包文件格式不兼容');
+        keys=vault.keys;
+      }finally{decrypted.fill(0);}
+    }
+    const merged=[...this.requireUnlocked()];let added=0;
+    for(const key of keys){
+      const wallet=new Wallet(key);
+      if(merged.some(x=>x.address.toLowerCase()===wallet.address.toLowerCase()))continue;
+      if(merged.length>=32)throw Error('本版最多保存32个本地地址');
+      merged.push(wallet);added++;
+    }
+    if(added){
+      const secret=Buffer.from(JSON.stringify({version:1,keys:merged.map(w=>w.privateKey)}));
+      try{writeFileSync(this.walletFile+'.new',crypt('protect',secret).toString('base64'),{flag:'wx'});renameSync(this.walletFile+'.new',this.walletFile);}
+      finally{secret.fill(0);}
+      this.wallets=merged;this.walletAddresses=merged.map(w=>w.address);
+      this.checkHash=createHash('sha256').update(`${LOCK_SALT}:${this.walletAddresses.join(',')}`).digest('hex');
+      this.meta.backupRequired=true;save(this.metaFile,this.meta);
+    }
+    return {added,total:merged.length,addresses:merged.map(w=>w.address)};
+  });}
   async state(){
     if(!this.ready)throw Error('节点未就绪或已退出，请查看节点日志');
     const p=this.providers[0];
@@ -297,6 +359,7 @@ export class NiuLab {
     // of this wallet's addresses, so incoming payments show up with sender and
     // amount instead of only the transfers this machine sent itself.
     let changed=false;
+    if(this.meta.lastBlock!==heights[0]){this.meta.lastBlock=heights[0];changed=true;}
     if(!this.lastLedgerScan||Date.now()-this.lastLedgerScan>5000){
       this.lastLedgerScan=Date.now();
       const scannedTo=typeof this.meta.scannedTo==='number'?this.meta.scannedTo:0;
@@ -344,6 +407,7 @@ export class NiuLab {
     }
     return {name:this.network?'牛链集成验证网络':'牛链本地测试网',chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash,heights,peers:Number(peers),
       syncing:syncPending(syncing)?syncing:false,connectionStatus:Number(peers)===0?'disconnected':syncPending(syncing)?'syncing':'connected',enode:nodeInfo.enode,
+      chainRecovered:this.chainRecovered||null,chainReset:this.chainReset||null,
       mining,miningUntil:this.miningUntil,busy:this.busy,locked:this.locked,
       wallets:this.walletAddresses.map((a,i)=>({address:a,balance:formatEther(balances[i]),name:this.meta.receiveLabels?.[a]||(i===0?'默认挖矿地址':`收款地址${i+1}`)})),
       walletTotal:formatEther(balances.reduce((sum,balance)=>sum+balance,0n)),contacts:this.meta.contacts||[],backupRequired:this.walletAddresses.some(a=>!(this.meta.backedUpAddresses||[]).includes(a)),activeReceivingAddress:this.meta.activeReceivingAddress||this.walletAddresses[0],
