@@ -1,0 +1,120 @@
+{
+  "name": "niu-wallet-desktop",
+  "productName": "NIU Wallet",
+  "version": "0.3.8",
+  "private": true,
+  "description": "牛币钱包桌面外壳（macOS / Windows），业务逻辑复用 scripts/server.mjs",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac dmg --arm64 --publish never",
+    "dist:win": "electron-builder --win zip --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.niulian.wallet",
+    "productName": "NIU Wallet",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "../dist-desktop",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../scripts",
+        "to": "app-resources/scripts"
+      },
+      {
+        "from": "../public",
+        "to": "app-resources/public"
+      },
+      {
+        "from": "../contracts",
+        "to": "app-resources/contracts"
+      },
+      {
+        "from": "../bin",
+        "to": "app-resources/bin"
+      },
+      {
+        "from": "../network",
+        "to": "app-resources/network"
+      },
+      {
+        "from": "../assets",
+        "to": "app-resources/assets"
+      },
+      {
+        "from": "../node_modules",
+        "to": "app-resources/node_modules"
+      },
+      {
+        "from": "../network/network-config.release.json",
+        "to": "app-resources/network-config.json"
+      },
+      {
+        "from": "../package.json",
+        "to": "app-resources/package.json"
+      },
+      {
+        "from": "../pnpm-lock.yaml",
+        "to": "app-resources/pnpm-lock.yaml"
+      }
+    ],
+    "mac": {
+      "artifactName": "NIU-Wallet-v${version}-macOS-${arch}.${ext}",
+      "icon": "../assets/niu-gold-v4.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.finance",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSHumanReadableCopyright": "牛链 NIU · 个人技术实验项目",
+        "LSMinimumSystemVersion": "11.0"
+      }
+    },
+    "dmg": {
+      "title": "牛币钱包 ${version}",
+      "contents": [
+        {
+          "x": 140,
+          "y": 200
+        },
+        {
+          "x": 400,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "artifactName": "NIU-Wallet-v${version}-Windows-${arch}.${ext}",
+      "icon": "../assets/niu-gold-v4.ico",
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}

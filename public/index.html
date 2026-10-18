@@ -1,1 +1,265 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="niu-token" content="__NIU_TOKEN__"><title>牛币钱包本机连接</title></head><body><p>请在牛币 Windows 钱包窗口中操作。本页仅供本机桌面客户端建立连接。</p></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="niu-token" content="__NIU_TOKEN__">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>牛币钱包</title>
+<link rel="icon" type="image/png" href="/niu-gold.png">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">
+        <img src="/niu-gold.png" alt="" width="34" height="34">
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">牛币钱包</span>
+        <span class="brand-net" id="netName">连接中…</span>
+      </span>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav-item is-active" data-page="overview"><span class="nav-dot"></span>概览</button>
+      <button class="nav-item" data-page="send"><span class="nav-dot"></span>发送</button>
+      <button class="nav-item" data-page="receive"><span class="nav-dot"></span>接收</button>
+      <button class="nav-item" data-page="ledger"><span class="nav-dot"></span>交易记录</button>
+      <button class="nav-item" data-page="mining"><span class="nav-dot"></span>挖矿</button>
+      <button class="nav-item" data-page="contract"><span class="nav-dot"></span>智能合约</button>
+      <button class="nav-item" data-page="settings"><span class="nav-dot"></span>设置</button>
+    </nav>
+
+    <div class="peerbox">
+      <div class="peerbox-row">
+        <span class="bars" id="bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span class="peer-label" id="peerLabel">检测中</span>
+      </div>
+      <div class="peer-meta" id="peerMeta">等待节点</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="banner" id="banner" hidden></div>
+
+    <section class="page is-active" id="page-overview">
+      <div class="hero">
+        <div class="hero-left">
+          <div class="hero-label">钱包总余额</div>
+          <div class="hero-amount"><span id="totalBalance">0</span><span class="hero-unit">NIU</span></div>
+          <div class="hero-addr" id="heroAddr">——</div>
+        </div>
+        <div class="hero-right">
+          <div class="stat"><span class="stat-k">区块高度</span><span class="stat-v" id="statHeight">0</span></div>
+          <div class="stat"><span class="stat-k">出块奖励</span><span class="stat-v" id="statReward">1000 NIU</span></div>
+          <div class="stat"><span class="stat-k">链 ID</span><span class="stat-v" id="statChain">—</span></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>我的地址</h3><button class="ghost-btn" id="copyActive">复制当前地址</button></div>
+          <div class="addr-list" id="addrList"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>最近区块</h3></div>
+          <div class="block-list" id="blockList"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>最近交易</h3><button class="ghost-btn" data-goto="ledger">查看全部</button></div>
+        <div class="tx-list" id="txListMini"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-send">
+      <div class="page-head">
+        <h2>发送 NIU</h2>
+        <p class="page-sub">从本机地址转出。交易发出后需要等待打包确认。</p>
+      </div>
+      <div class="card form-card">
+        <label class="field">
+          <span class="field-k">付款地址</span>
+          <select id="sendFrom"></select>
+        </label>
+        <label class="field">
+          <span class="field-k">收款地址</span>
+          <input id="sendTo" type="text" placeholder="0x..." spellcheck="false" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-k">金额 (NIU)</span>
+          <input id="sendAmount" type="text" placeholder="0.0" spellcheck="false" autocomplete="off">
+        </label>
+        <div class="field-note" id="sendNote"></div>
+        <button class="primary-btn" id="sendBtn">确认发送</button>
+        <div class="result" id="sendResult" hidden></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-receive">
+      <div class="page-head">
+        <h2>接收 NIU</h2>
+        <p class="page-sub">把地址发给对方即可收款，收到后可在此页看到余额变化。</p>
+      </div>
+      <div class="card receive-card">
+        <div class="receive-layout">
+          <div class="receive-qr-wrap">
+            <img class="receive-qr" id="receiveQr" alt="当前收款地址二维码" width="240" height="240" hidden>
+            <div class="receive-qr-empty" id="receiveQrEmpty">等待钱包地址</div>
+            <div class="receive-qr-caption">扫码获取收款地址</div>
+          </div>
+          <div class="receive-detail">
+            <div class="field-k">当前收款地址</div>
+            <div class="receive-addr" id="receiveAddr">——</div>
+            <label class="field receive-picker">
+              <span class="field-k">选择收款地址</span>
+              <select id="receiveSelect"></select>
+            </label>
+            <div class="receive-actions">
+              <button class="primary-btn slim" id="copyReceive">复制地址</button>
+              <button class="ghost-btn" id="newReceive">新增收款地址</button>
+            </div>
+            <p class="hint">每个收款地址都属于这个钱包。新增地址后请立即重新导出备份。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-ledger">
+      <div class="page-head">
+        <h2>交易记录</h2>
+        <p class="page-sub">包含本机发起的转账，以及链上扫到的收款。点击任意交易可查看完整链上明细。</p>
+      </div>
+      <div class="card">
+        <div class="tx-list" id="txListFull"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-mining">
+      <div class="page-head">
+        <h2>挖矿</h2>
+        <p class="page-sub">挖矿由本机全节点执行，需要保持程序运行。</p>
+      </div>
+      <div class="mine-card" id="mineCard">
+        <div class="mine-state">
+          <span class="mine-led" id="mineLed"></span>
+          <span class="mine-text" id="mineText">已停止</span>
+        </div>
+        <div class="mine-meta" id="mineMeta">当前未参与出块</div>
+        <button class="primary-btn slim" id="mineBtn">开始挖矿</button>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>当前产出规则</h3></div>
+          <div class="rule-list">
+            <div class="rule"><span>每块奖励</span><b>1000 NIU</b></div>
+            <div class="rule"><span>目标出块间隔</span><b>约 60 秒</b></div>
+            <div class="rule"><span>减半周期</span><b>1,050,000 块</b></div>
+            <div class="rule"><span>挖矿地址</span><b id="mineAddr">——</b></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>说明</h3></div>
+          <ul class="bullet">
+            <li>出块速度受全网算力、本机性能与网络状态影响。</li>
+            <li>停止挖矿不会影响余额，仅停止出块。</li>
+            <li>程序不会自动开启挖矿。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-contract">
+      <div class="page-head">
+        <h2>智能合约</h2>
+        <p class="page-sub">在链上部署留言合约，写入内容会留在区块里。</p>
+      </div>
+      <div class="card form-card">
+        <div class="field-k">合约地址</div>
+        <div class="mono-line" id="contractAddr">尚未部署</div>
+        <label class="field">
+          <span class="field-k">留言内容</span>
+          <textarea id="contractMsg" rows="3" placeholder="写点什么…"></textarea>
+        </label>
+        <div class="field-note" id="contractNote"></div>
+        <div class="btn-row">
+          <button class="primary-btn slim" id="contractDeploy">部署合约</button>
+          <button class="ghost-btn" id="contractUpdate">更新留言</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-settings">
+      <div class="page-head">
+        <h2>设置</h2>
+        <p class="page-sub">备份、导入与钱包保护。</p>
+      </div>
+      <div class="card language-card">
+        <div class="card-head"><h3>界面语言</h3></div>
+        <label class="field language-field">
+          <span class="field-k">选择语言</span>
+          <select id="languageSelect" aria-label="界面语言">
+            <option value="zh-CN">简体中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="es">Español</option>
+            <option value="ru">Русский</option>
+          </select>
+        </label>
+        <p class="hint">切换立即生效，重启后保留；不会改变地址、余额或链上数据。</p>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>钱包保护</h3></div>
+          <div class="rule-list">
+            <div class="rule"><span>加密方式</span><b id="protectMode">—</b></div>
+            <div class="rule"><span>锁定状态</span><b id="lockState">—</b></div>
+            <div class="rule"><span>数据目录</span><b class="ellipsis" id="dataPath">—</b></div>
+          </div>
+          <div class="btn-row">
+            <button class="ghost-btn" id="lockBtn">立即锁定</button>
+            <button class="ghost-btn" id="unlockBtn">解锁钱包</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>备份与导入</h3></div>
+          <p class="hint">导出的备份可跨电脑恢复；导入时直接选择备份文件，并输入导出时设置的密码。</p>
+          <div class="btn-row">
+            <button class="primary-btn slim" id="backupBtn">导出备份</button>
+            <button class="ghost-btn" id="importBtn">导入钱包</button>
+            <input id="importFile" type="file" accept=".json,.dat,.dpapi,application/json" hidden>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>联络人</h3></div>
+        <div class="addr-list" id="contactList"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box">
+    <h3 id="modalTitle">—</h3>
+    <p class="modal-sub" id="modalSub"></p>
+    <input id="modalInput" type="text" autocomplete="off" spellcheck="false">
+    <div class="btn-row end">
+      <button class="ghost-btn" id="modalCancel">取消</button>
+      <button class="primary-btn slim" id="modalOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

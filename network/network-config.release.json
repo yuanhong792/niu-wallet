@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chainId": 26261017,
+  "networkId": 26261017,
+  "genesisHash": "0x9590d27e9e5977eb00bf1fd794d93fce0cac22dad04dc3f25fc072ab0c87e053",
+  "peers": [
+    "enode://233839fcc4ec119bd3cc87536d144b5e27af28589957a9aa207d98c948605f1465ed04b165b7f2c83736c4f82ba30bea7df9a9b6428e1e62d28f7c50187f1ea9@49.235.133.254:30871?discport=0"
+  ],
+  "allowPeerIPs": [
+    "49.235.133.254"
+  ],
+  "listenAddress": "127.0.0.1",
+  "advertiseIP": null,
+  "coordinator": false,
+  "restrictPeerIPs": true
+}

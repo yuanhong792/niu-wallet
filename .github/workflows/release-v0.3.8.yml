@@ -1,0 +1,147 @@
+name: release-v0.3.8
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: v0.3.8
+
+jobs:
+  test:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release v0.3.8]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: node/go.sum
+      - run: npm ci
+      - name: Build test node
+        working-directory: node
+        run: |
+          mkdir -p ../bin
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ../bin/niu-geth-candidate.exe ./cmd/geth
+      - run: npm test
+
+  macos:
+    needs: test
+    runs-on: macos-14
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: node/go.sum
+      - name: Install wallet dependencies
+        run: npm ci
+      - name: Build NIU node for macOS arm64
+        working-directory: node
+        run: |
+          mkdir -p ../bin
+          CGO_ENABLED=1 GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ../bin/niu-geth-candidate ./cmd/geth
+          ../bin/niu-geth-candidate version
+      - name: Install desktop packager
+        working-directory: desktop
+        run: npm install
+      - name: Build macOS package
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist:mac
+      - name: Create checksum
+        run: |
+          file="dist-desktop/NIU-Wallet-v0.3.8-macOS-arm64.dmg"
+          shasum -a 256 "$file" > "$file.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: niu-wallet-v0.3.8-macos-arm64
+          path: |
+            dist-desktop/NIU-Wallet-v0.3.8-macOS-arm64.dmg
+            dist-desktop/NIU-Wallet-v0.3.8-macOS-arm64.dmg.sha256
+          if-no-files-found: error
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: node/go.sum
+      - name: Install wallet dependencies
+        run: npm ci
+      - name: Build NIU node for Windows x64
+        shell: pwsh
+        working-directory: node
+        run: |
+          New-Item -ItemType Directory -Force ..\bin | Out-Null
+          $env:CGO_ENABLED = '0'
+          $env:GOARCH = 'amd64'
+          go build -trimpath -ldflags "-s -w" -o ..\bin\niu-geth-candidate.exe .\cmd\geth
+          ..\bin\niu-geth-candidate.exe version
+      - name: Install desktop packager
+        working-directory: desktop
+        run: npm install
+      - name: Build Windows package
+        working-directory: desktop
+        run: npm run dist:win
+      - name: Create checksum
+        shell: pwsh
+        run: |
+          $file = 'dist-desktop\NIU-Wallet-v0.3.8-Windows-x64.zip'
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  NIU-Wallet-v0.3.8-Windows-x64.zip" | Set-Content "$file.sha256" -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: niu-wallet-v0.3.8-windows-x64
+          path: |
+            dist-desktop/NIU-Wallet-v0.3.8-Windows-x64.zip
+            dist-desktop/NIU-Wallet-v0.3.8-Windows-x64.zip.sha256
+          if-no-files-found: error
+
+  release:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: niu-wallet-v0.3.8-*
+          path: release
+          merge-multiple: true
+      - name: Publish macOS and Windows v0.3.8
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: |
+            macOS Apple Silicon 与 Windows x64 使用同一套 Electron UI 和钱包业务代码。
+
+            设置页新增六语言切换：简体中文、English、日本語、한국어、Español、Русский。支持完整交易明细、收款二维码、便携加密备份导入与导出。
+
+            Windows 本机密钥使用 DPAPI；macOS 本机密钥使用钥匙串保护的 AES-256-GCM。挖矿会持续运行，直到用户手动停止；程序重启后不会自动开始挖矿。
+
+            当前安装包未进行商业代码签名或 Apple 公证，且项目尚未完成独立安全审计，请先小额测试并妥善保存离线备份。
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "NIU Wallet v0.3.8 - macOS arm64 + Windows x64" --notes "$RELEASE_NOTES"
+          gh release upload "$RELEASE_TAG" release/* --clobber

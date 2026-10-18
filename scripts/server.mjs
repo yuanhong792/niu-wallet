@@ -3,13 +3,21 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {NiuLab,ROOT} from './lab.mjs';
+import {addressQrSvg,validReceiveAddress} from './address-qr.mjs';
 
-const host='127.0.0.1',port=18790,origin=`http://${host}:${port}`;
+const host='127.0.0.1',port=Number(process.env.NIU_HTTP_PORT||18790),origin=`http://${host}:${port}`;
+if(!Number.isInteger(port)||port<1024||port>65535)throw Error('钱包控制端口无效');
 const token=randomBytes(32).toString('hex');
 const lab=new NiuLab({ports:[19145,19146],p2p:[30871,30872],auth:[19151,19152]});
+const staticFiles=new Map([
+  ['/app.js',['app.js','text/javascript; charset=utf-8']],
+  ['/app.css',['app.css','text/css; charset=utf-8']],
+  ['/niu-gold.png',['niu-gold.png','image/png']]
+]);
+const localeFiles=new Set(['zh-CN','en','ja','ko','es','ru']);
 let stopping=false,initializing=true,startupError=null;
 function json(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
-async function body(req){req.setEncoding('utf8');let data='';for await(const chunk of req){data+=chunk;if(Buffer.byteLength(data)>8192)throw Error('请求内容过长');}try{return JSON.parse(data||'{}');}catch{throw Error('请求格式无效');}}
+async function body(req){req.setEncoding('utf8');let data='';for await(const chunk of req){data+=chunk;if(Buffer.byteLength(data)>150000)throw Error('请求内容过长');}try{return JSON.parse(data||'{}');}catch{throw Error('请求格式无效');}}
 function authorized(req){
   const provided=Buffer.from(req.headers['x-niu-token']||'');const expected=Buffer.from(token);
   return req.headers.origin===origin&&provided.length===expected.length&&timingSafeEqual(provided,expected);
@@ -25,10 +33,32 @@ const server=http.createServer(async(req,res)=>{
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
       return res.end(readFileSync(resolve(ROOT,'public/index.html'),'utf8').replace('__NIU_TOKEN__',token));
     }
+    if(req.method==='GET'&&staticFiles.has(url.pathname)){
+      const [file,type]=staticFiles.get(url.pathname);
+      res.writeHead(200,{'Content-Type':type});
+      return res.end(readFileSync(resolve(ROOT,'public',file)));
+    }
+    if(req.method==='GET'&&url.pathname.startsWith('/locales/')){
+      const code=url.pathname.slice('/locales/'.length,-'.json'.length);
+      if(!url.pathname.endsWith('.json')||!localeFiles.has(code))return json(res,404,{error:'不支持的界面语言'});
+      res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'});
+      return res.end(readFileSync(resolve(ROOT,'assets/locales',code+'.json')));
+    }
+    if(req.method==='GET'&&url.pathname==='/api/qr'){
+      const address=url.searchParams.get('address')||'';
+      if(!validReceiveAddress(address))return json(res,400,{error:'收款地址格式不正确'});
+      const svg=await addressQrSvg(address);
+      res.writeHead(200,{'Content-Type':'image/svg+xml; charset=utf-8','Content-Security-Policy':"default-src 'none'; sandbox"});
+      return res.end(svg);
+    }
     if(req.method==='GET'&&url.pathname==='/api/state'){
       if(initializing)return json(res,200,{initializing:true});
       if(startupError)return json(res,503,{error:startupError});
       return json(res,200,await lab.state());
+    }
+    if(req.method==='GET'&&url.pathname==='/api/transaction'){
+      if(initializing||startupError||stopping)return json(res,503,{error:startupError||'节点尚未就绪'});
+      return json(res,200,await lab.transactionDetails(url.searchParams.get('hash')||''));
     }
     if(req.method==='POST'){
       if(!authorized(req))return json(res,403,{error:'请求来源校验失败，请从本机控制台操作'});
@@ -53,6 +83,7 @@ const server=http.createServer(async(req,res)=>{
       if(url.pathname==='/api/message')return json(res,200,await lab.update(data.message));
       if(url.pathname==='/api/backup-portable')return json(res,200,await lab.portableBackup(data.password));
       if(url.pathname==='/api/import-wallet')return json(res,200,await lab.importWalletFile(data.path,data.password??null));
+      if(url.pathname==='/api/import-wallet-data')return json(res,200,await lab.importWalletText(data.content,data.password??null));
     }
     json(res,404,{error:'页面不存在'});
   }catch(e){json(res,400,{error:e.shortMessage||e.message||'操作失败，请查看日志'});}
@@ -66,7 +97,7 @@ async function shutdown(){
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'控制台已启动或端口被占用，请打开现有页面。':e.message);process.exitCode=1;});
 server.listen(port,host,async()=>{
   console.log(`牛链中文控制台：${origin}`);
-  try{await lab.start();initializing=false;console.log('两个持久节点已就绪；挖矿默认关闭。');}
+  try{await lab.start();initializing=false;console.log('牛链节点已就绪；挖矿默认关闭。');}
   catch(e){initializing=false;startupError=e.message;console.error(e.message);}
 });
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);

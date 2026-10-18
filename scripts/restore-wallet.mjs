@@ -4,9 +4,9 @@
 import {readFileSync,existsSync,mkdirSync,readdirSync,writeFileSync,unlinkSync,statSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {spawnSync} from 'node:child_process';
 import {importPortable} from './portable-vault.mjs';
 import {loadNetwork} from './network.mjs';
+import {crypt} from './vault-crypto.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const data=resolve(root,'runtime/persistent');
 let lock=false;
@@ -25,10 +25,7 @@ try{
   if(readdirSync(data).some(name=>name!=='lab.lock'))throw Error('仅允许恢复到全新的钱包目录，不会覆盖原钱包或链数据');
   const secret=Buffer.from(JSON.stringify({version:1,keys:wallets.map(w=>w.privateKey)}));
   try{
-    const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',resolve(root,'scripts/wallet-vault.ps1'),'-Mode','protect'],
-      {input:secret.toString('base64'),encoding:'utf8',windowsHide:true,timeout:30000});
-    if(result.status!==0||!/^[A-Za-z0-9+/=]+$/.test(result.stdout.trim()))throw Error('本机钱包加密失败');
-    writeFileSync(resolve(data,'wallet.dpapi'),result.stdout.trim(),{flag:'wx'});
+    writeFileSync(resolve(data,'wallet.dpapi'),crypt('protect',secret).toString('base64'),{flag:'wx'});
   }finally{secret.fill(0);}
   console.log(JSON.stringify({restored:true,address:wallets[0].address,chainId:network.chainId}));
 }catch(e){console.error('钱包恢复失败：'+(e.code==='EEXIST'?'目录已有钱包或正在使用':e.message));process.exitCode=1;}

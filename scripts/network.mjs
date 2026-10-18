@@ -30,7 +30,7 @@ export function validateNetwork(value) {
   if(!['127.0.0.1','0.0.0.0'].includes(value.listenAddress))throw Error('节点监听地址无效');
   if(typeof value.coordinator!=='boolean')throw Error('引导节点选项无效');
   if(typeof value.restrictPeerIPs!=='boolean')throw Error('节点IP限制选项无效');
-  if(!value.peers.length&&!value.coordinator)throw Error('尚未配置引导节点，不能启动朋友网络');
+  if(!value.peers.length&&!value.coordinator)throw Error('尚未配置引导节点，不能启动牛链网络');
   if(!Array.isArray(value.allowPeerIPs)||value.allowPeerIPs.some(ip=>net.isIP(ip)!==4))throw Error('允许接入的IP无效');
   if(value.advertiseIP!==null&&net.isIP(value.advertiseIP)!==4)throw Error('对外节点IP无效');
   return {...value,peers:[...new Set(value.peers)],peerIPs:[...new Set([...peerIPs,...value.allowPeerIPs])]};

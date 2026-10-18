@@ -4,7 +4,7 @@
 
 牛币钱包是牛链（NIU）桌面钱包。当前提供 Windows x64 与 macOS Apple Silicon（arm64）版本；两端均接入同一条 NIU 网络。
 
-> **当前版本：** macOS `v0.3.8`，Windows `v0.3.7`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
+> **当前版本：** macOS 与 Windows 均为 `v0.3.8`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
 
 [白皮书 V3.0](docs/牛链NIU白皮书V3.0.md) · [V3.0 Word](docs/牛链NIU白皮书V3.0.docx) · [技术白皮书 V2.0](docs/牛链NIU白皮书V2.0.md) · [安全状态](SECURITY.md)
 
@@ -31,6 +31,7 @@
 - 钱包保护：签名类操作需要解锁，空闲约 5 分钟自动上锁。
 - 备份与恢复：导出带独立密码的可携带 JSON 备份；导入时直接选择备份文件，明确区分当前钱包口令与备份密码。
 - 六种界面语言：简体中文、English、日本語、한국어、Español、Русский。
+- macOS 与 Windows 共用同一套 Electron 界面和钱包业务代码，页面布局、功能入口与语言设置保持一致。
 
 ## 钱包地址和备份
 
@@ -55,8 +56,8 @@
 
 ### Windows x64
 
-1. 从 Releases 下载 Windows 压缩包并完整解压，不要只复制单个 EXE。
-2. 双击 `NiuWallet.exe`。
+1. 从 Releases 下载 `NIU-Wallet-v0.3.8-Windows-x64.zip` 并完整解压，不要只复制单个 EXE。
+2. 双击文件夹中的 `NIU Wallet.exe`。
 3. 当前版本未做商业代码签名；Windows SmartScreen 可能显示“未知发布者”。
 
 ## 共识实现与边界
@@ -67,9 +68,9 @@
 
 ## 上游与测试
 
-节点基于 Core-Geth v1.12.23，起始提交 `96b2afc25c7023bb500d14e8ed69455339b1ca90`，保留上游版权和许可证。macOS 桌面端使用 Electron，Windows 桌面端使用 .NET Framework / Windows Forms。
+节点基于 Core-Geth v1.12.23，起始提交 `96b2afc25c7023bb500d14e8ed69455339b1ca90`，保留上游版权和许可证。macOS 与 Windows 桌面端均使用 Electron，并复用同一套受本机回环地址保护的后端接口。
 
-v0.3.8 已通过 15 项钱包回归测试，并对 DMG 完成镜像校验和 `codesign --verify` 验证。当前 macOS 包为临时签名（ad-hoc），不等同于 Apple Developer ID 签名或公证。
+v0.3.8 已通过钱包回归测试与六语言静态覆盖检查；发布流程会分别构建 macOS arm64 DMG 和 Windows x64 ZIP，并生成 SHA-256 校验文件。当前 macOS 包为临时签名（ad-hoc），Windows 包未做商业代码签名。
 
 安全状态、依赖扫描结论和仍未完成的验证见 [SECURITY.md](SECURITY.md)。
 

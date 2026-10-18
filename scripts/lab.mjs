@@ -4,11 +4,12 @@ import net from 'node:net';
 import {createHash} from 'node:crypto';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {Wallet,JsonRpcProvider,ContractFactory,Contract,isAddress,getAddress,parseEther,formatEther} from 'ethers';
+import {Wallet,JsonRpcProvider,ContractFactory,Contract,isAddress,getAddress,parseEther,formatEther,formatUnits} from 'ethers';
 import solc from 'solc';
 import {exportPortable,importPortable} from './portable-vault.mjs';
 import {loadNetwork,p2pConfig,syncPending} from './network.mjs';
 import {NiuProvider} from './local-provider.mjs';
+import {crypt,walletProtection} from './vault-crypto.mjs';
 export const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export const CHAIN_ID=26261015;
 export const LOCK_IDLE_MS=5*60*1000;   // auto-lock the vault after 5 minutes without a signing action
@@ -28,16 +29,11 @@ export async function waitFor(label,fn,timeout=180000){
   throw Error(`${label}超时${error?`：${error.shortMessage||error.message}`:''}`);
 }
 function save(file,value){writeFileSync(file+'.new',JSON.stringify(value,null,2));renameSync(file+'.new',file);}
-function crypt(mode,bytes){
-  const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',resolve(ROOT,'scripts/wallet-vault.ps1'),'-Mode',mode],
-    {input:Buffer.from(bytes).toString('base64'),encoding:'utf8',windowsHide:true,timeout:30000});
-  if(r.status!==0)throw Error('Windows钱包加解密失败。请使用创建钱包时的Windows账户；不要覆盖原钱包。');
-  return Buffer.from(r.stdout.trim(),'base64');
-}
 export class NiuLab {
-  constructor({base=resolve(ROOT,'runtime/persistent'),ports=[18645,18646],p2p=[30471,30472],auth=[18651,18652],network=loadNetwork(ROOT),nodeBin}={}){
+  constructor({base=process.env.NIU_DATA_DIR||resolve(ROOT,'runtime/persistent'),ports=[18645,18646],p2p=[30471,30472],auth=[18651,18652],network=loadNetwork(ROOT),nodeBin}={}){
     this.base=base;this.ports=ports;this.p2p=p2p;this.auth=auth;this.children=[];this.logs=[];this.providers=[];
     this.nodeBin=nodeBin;this.ready=false;this.miningUntil=null;this.timer=null;this.busy=false;this.stopping=false;
+    this.wallets=[];this.walletAddresses=[];this.locked=true;
     this.network=network;
     if(this.network){this.ports=ports.slice(0,1);this.p2p=p2p.slice(0,1);this.auth=auth.slice(0,1);}
   }
@@ -91,7 +87,10 @@ export class NiuLab {
     this.meta=existsSync(this.metaFile)?JSON.parse(readFileSync(this.metaFile)): {transactions:[],contract:null};
     try{
       for(let i=0;i<this.ports.length;i++){
-        const datadir=resolve(this.base,`node${i+1}`),exe=this.nodeBin||resolve(ROOT,this.network?'bin/niu-geth-candidate.exe':'bin/geth.exe');
+        const nodeName=(this.network?'niu-geth-candidate':'geth')+(process.platform==='win32'?'.exe':'');
+        let fallback=resolve(ROOT,'bin',nodeName);
+        if(process.platform==='darwin'&&!existsSync(fallback)&&existsSync(fallback+'.exe'))fallback+='.exe';
+        const datadir=resolve(this.base,`node${i+1}`),exe=this.nodeBin||process.env.NIU_NODE_BIN||fallback;
         if(!existsSync(exe))throw Error('缺少与牛链规则匹配的节点程序，拒绝使用上游程序替代');
         const init=spawnSync(exe,['--datadir',datadir,'init',configFile],{encoding:'utf8',windowsHide:true});
         writeFileSync(resolve(this.base,`init${i+1}.log`),(init.stdout||'')+(init.stderr||''));
@@ -249,7 +248,7 @@ export class NiuLab {
     const source=from===undefined?unlocked[0]:unlocked.find(w=>w.address.toLowerCase()===String(from).toLowerCase());
     if(!source)throw Error('发送账户不属于当前钱包');
     const signer=source.connect(this.providers[0]);
-    if(await this.providers[0].getBalance(signer.address)<value+21000n*2000000000n)throw Error('余额不足，请先挖矿获得测试NIU，并预留手续费');
+    if(await this.providers[0].getBalance(signer.address)<value+21000n*2000000000n)throw Error('余额不足，请先获得NIU，并预留手续费');
     const tx=await signer.sendTransaction({to,value,gasLimit:21000,gasPrice:2000000000n,type:0});
     const r=await this.confirmed(tx,'转账');return {hash:tx.hash,block:r.blockNumber};
   });}
@@ -314,9 +313,14 @@ export class NiuLab {
   // backup (password protected, works across machines) or a same-machine vault
   // file (wallet.dpapi / .dat, bound to this Windows account). Duplicate
   // addresses are skipped; the merged vault is written atomically.
-  async importWalletFile(filePath,password){return this.exclusive(async()=>{
+  async importWalletFile(filePath,password){
     if(typeof filePath!=='string'||!filePath||statSync(filePath).size>131072)throw Error('钱包文件无效或过大');
     const text=readFileSync(filePath,'utf8').trim();
+    return this.importWalletText(text,password);
+  }
+  async importWalletText(text,password){return this.exclusive(async()=>{
+    if(typeof text!=='string'||!text.trim()||Buffer.byteLength(text)>131072)throw Error('钱包文件无效或过大');
+    text=text.trim();
     let keys;
     if(text.startsWith('{')){
       const restored=await importPortable(text,password,{chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash});
@@ -346,6 +350,38 @@ export class NiuLab {
     }
     return {added,total:merged.length,addresses:merged.map(w=>w.address)};
   });}
+  async transactionDetails(hash){
+    if(typeof hash!=='string'||!/^0x[0-9a-f]{64}$/i.test(hash))throw Error('交易哈希格式不正确');
+    const saved=this.meta.transactions.find(item=>item.hash.toLowerCase()===hash.toLowerCase());
+    if(!saved)throw Error('钱包交易记录中没有这笔交易');
+    const p=this.providers[0];
+    const [tx,receipt,height]=await Promise.all([
+      p.getTransaction(hash).catch(()=>null),p.getTransactionReceipt(hash).catch(()=>null),p.getBlockNumber()
+    ]);
+    if(!tx&&!receipt)throw Error('节点暂时查不到这笔交易，请等待同步完成');
+    const blockNumber=receipt?.blockNumber??tx?.blockNumber??saved.block??null;
+    let block=null;
+    if(blockNumber!==null)try{block=await p.getBlock(blockNumber);}catch{}
+    const gasPrice=receipt?.gasPrice??tx?.gasPrice??0n;
+    const gasUsed=receipt?.gasUsed??0n;
+    const input=tx?.data||'0x';
+    return {
+      hash:tx?.hash||saved.hash,
+      status:receipt?(receipt.status===1?'confirmed':'failed'):(saved.status||'pending'),
+      confirmations:blockNumber===null?0:Math.max(0,height-Number(blockNumber)+1),
+      blockNumber,blockHash:receipt?.blockHash||tx?.blockHash||saved.blockHash||null,
+      transactionIndex:receipt?.index??tx?.index??null,
+      timestamp:block?new Date(block.timestamp*1000).toISOString():saved.at||null,
+      from:tx?.from||saved.from||null,to:tx?.to||saved.to||null,
+      amount:tx?formatEther(tx.value):saved.amount,
+      nonce:tx?.nonce??null,type:tx?.type??null,chainId:Number(tx?.chainId??this.network?.chainId??CHAIN_ID),
+      gasLimit:tx?String(tx.gasLimit):null,gasUsed:receipt?String(gasUsed):null,
+      gasPriceWei:gasPrice?String(gasPrice):null,gasPriceGwei:gasPrice?formatUnits(gasPrice,'gwei'):null,
+      fee:receipt&&gasPrice?formatEther(gasUsed*gasPrice):null,
+      input,inputBytes:input==='0x'?0:(input.length-2)/2,
+      contractAddress:receipt?.contractAddress||null,logsCount:receipt?.logs?.length??null
+    };
+  }
   async state(){
     if(!this.ready)throw Error('节点未就绪或已退出，请查看节点日志');
     const p=this.providers[0];
@@ -404,13 +440,13 @@ export class NiuLab {
         if(r?.status===0){this.meta.contract=null;save(this.metaFile,this.meta);}else contract={address,pending:true};
       }
     }
-    return {name:this.network?'牛链集成验证网络':'牛链本地测试网',chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash,heights,peers:Number(peers),
+    return {name:this.network?'牛链网络':'牛链',chainId:this.network?.chainId||CHAIN_ID,genesisHash:this.genesisHash,heights,peers:Number(peers),
       syncing:syncPending(syncing)?syncing:false,connectionStatus:Number(peers)===0?'disconnected':syncPending(syncing)?'syncing':'connected',enode:nodeInfo.enode,
       chainRecovered:this.chainRecovered||null,chainReset:this.chainReset||null,
       mining,miningUntil:this.miningUntil,busy:this.busy,locked:this.locked,
       wallets:this.walletAddresses.map((a,i)=>({address:a,balance:formatEther(balances[i]),name:this.meta.receiveLabels?.[a]||(i===0?'默认挖矿地址':`收款地址${i+1}`)})),
       walletTotal:formatEther(balances.reduce((sum,balance)=>sum+balance,0n)),contacts:this.meta.contacts||[],backupRequired:this.walletAddresses.some(a=>!(this.meta.backedUpAddresses||[]).includes(a)),activeReceivingAddress:this.meta.activeReceivingAddress||this.walletAddresses[0],
-      blocks,transactions:this.meta.transactions,contract,walletProtection:'Windows DPAPI · 当前账户 · 需口令解锁',dataPath:this.base};
+      blocks,transactions:this.meta.transactions,contract,walletProtection:walletProtection(),dataPath:this.base};
   }
   async close(){
     this.stopping=true;this.ready=false;clearTimeout(this.timer);

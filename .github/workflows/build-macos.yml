@@ -1,0 +1,84 @@
+name: build-macos
+
+# 在 macOS runner 上编译节点并打出 .dmg。
+# 之所以必须用 macOS runner：节点用的是 Ethash，CGO_ENABLED=1，
+# 在 Windows 上无法交叉编译到 darwin；.dmg 也只有 macOS 的 hdiutil 能做。
+#
+# 触发方式：手动运行，或推 v* 标签。
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  dmg:
+    name: macOS arm64
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 安装后端依赖
+        run: npm ci
+
+      - name: 准备 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: node/go.sum
+
+      - name: 编译 macOS 版节点
+        working-directory: node
+        run: |
+          set -e
+          CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" \
+            -o ../bin/niu-geth-candidate.exe ./cmd/geth
+          chmod +x ../bin/niu-geth-candidate.exe
+          cp ../bin/niu-geth-candidate.exe ../bin/geth.exe
+          echo "--- 产物类型 ---"
+          file ../bin/niu-geth-candidate.exe
+          echo "--- 版本 ---"
+          ../bin/niu-geth-candidate.exe version
+          du -h ../bin/niu-geth-candidate.exe
+
+      - name: 安装 Electron 工具链
+        working-directory: desktop
+        run: npm install
+
+      - name: 准备 DMG 工具依赖
+        run: |
+          mkdir -p "$RUNNER_TEMP/niu-bin"
+          ln -s "$(command -v python3)" "$RUNNER_TEMP/niu-bin/python"
+          echo "$RUNNER_TEMP/niu-bin" >> "$GITHUB_PATH"
+
+      - name: 打包 dmg
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --arm64 --publish never
+
+      - name: 计算校验值
+        run: |
+          for f in dist-desktop/*.dmg; do
+            echo "$(shasum -a 256 "$f" | awk '{print $1}')  $(basename "$f")" \
+              >> dist-desktop/SHA256SUMS.txt
+          done
+          cat dist-desktop/SHA256SUMS.txt
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: niu-wallet-macos-arm64
+          path: |
+            dist-desktop/*.dmg
+            dist-desktop/SHA256SUMS.txt
+          if-no-files-found: error

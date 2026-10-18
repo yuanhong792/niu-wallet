@@ -1,4 +1,5 @@
 /node_modules/
+/desktop/node_modules/
 /runtime/
 /engine/
 /bin/
@@ -13,3 +14,4 @@
 /nodekey
 /jwtsecret
 /network-config.json
+/dist-desktop/

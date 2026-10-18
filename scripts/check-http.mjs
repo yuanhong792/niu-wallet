@@ -14,6 +14,10 @@ async function probe(name,path,options,status){
 try{
   const home=await probe('localConnection','/',{},200),token=home.match(/name="niu-token" content="([a-f0-9]{64})"/)?.[1];
   if(!token)throw Error('missing session token');
+  const script=await probe('javascriptAsset','/app.js',{},200);
+  if(!script.includes("'use strict'"))throw Error('invalid javascript asset');
+  await probe('stylesheetAsset','/app.css',{},200);
+  await probe('logoAsset','/niu-gold.png',{},200);
   await probe('hostValidation','/',{headers:{host:'attacker.invalid'}},403);
   await probe('crossSiteFetchRejected','/',{headers:{'sec-fetch-site':'cross-site'}},403);
   await probe('missingTokenRejected','/api/mine',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{"enabled":false}'},403);
