@@ -32,7 +32,7 @@ jobs:
         working-directory: node
         run: |
           mkdir -p ../bin
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o ../bin/niu-geth-candidate.exe ./cmd/geth
+          CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o ../bin/niu-geth-candidate.exe ./cmd/geth
       - run: npm test
 
   macos:
@@ -98,7 +98,7 @@ jobs:
         working-directory: node
         run: |
           New-Item -ItemType Directory -Force ..\bin | Out-Null
-          $env:CGO_ENABLED = '0'
+          $env:CGO_ENABLED = '1'
           $env:GOARCH = 'amd64'
           go build -trimpath -ldflags "-s -w" -o ..\bin\niu-geth-candidate.exe .\cmd\geth
           ..\bin\niu-geth-candidate.exe version
