@@ -1,0 +1,49 @@
+name: publish-v0.3.8
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful release workflow run containing both platform artifacts
+        required: true
+        default: '39140012647'
+  push:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: write
+
+env:
+  RELEASE_TAG: v0.3.8
+  SOURCE_RUN_ID: ${{ github.event.inputs.run_id || '39140012647' }}
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish v0.3.8]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: niu-wallet-v0.3.8-*
+          path: release
+          merge-multiple: true
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Publish macOS and Windows v0.3.8
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_NOTES: |
+            macOS Apple Silicon 与 Windows x64 使用同一套 Electron UI 和钱包业务代码。
+
+            设置页新增六语言切换：简体中文、English、日本語、한국어、Español、Русский。支持完整交易明细、收款二维码、便携加密备份导入与导出。
+
+            Windows 本机密钥使用 DPAPI；macOS 本机密钥使用钥匙串保护的 AES-256-GCM。挖矿会持续运行，直到用户手动停止；程序重启后不会自动开始挖矿。
+
+            当前安装包未进行商业代码签名或 Apple 公证，且项目尚未完成独立安全审计，请先小额测试并妥善保存离线备份。
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "NIU Wallet v0.3.8 - macOS arm64 + Windows x64" --notes "$RELEASE_NOTES"
+          gh release upload "$RELEASE_TAG" release/* --clobber

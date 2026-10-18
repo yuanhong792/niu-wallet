@@ -134,6 +134,7 @@ jobs:
       - name: Publish macOS and Windows v0.3.8
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_NOTES: |
             macOS Apple Silicon 与 Windows x64 使用同一套 Electron UI 和钱包业务代码。
 
