@@ -27,7 +27,7 @@ jobs:
         with:
           go-version: 'stable'
           cache-dependency-path: node/go.sum
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - name: Build test node
         working-directory: node
         run: |
@@ -50,7 +50,7 @@ jobs:
           go-version: 'stable'
           cache-dependency-path: node/go.sum
       - name: Install wallet dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Build NIU node for macOS arm64
         working-directory: node
         run: |
@@ -92,7 +92,7 @@ jobs:
           go-version: 'stable'
           cache-dependency-path: node/go.sum
       - name: Install wallet dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Build NIU node for Windows x64
         shell: pwsh
         working-directory: node
