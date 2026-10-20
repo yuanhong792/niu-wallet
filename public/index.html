@@ -177,19 +177,114 @@
     <section class="page" id="page-contract">
       <div class="page-head">
         <h2>智能合约</h2>
-        <p class="page-sub">在链上部署留言合约，写入内容会留在区块里。</p>
+        <p class="page-sub">发行标准代币，编译与部署 Solidity，并安全调用已保存的合约。</p>
       </div>
-      <div class="card form-card">
-        <div class="field-k">合约地址</div>
-        <div class="mono-line" id="contractAddr">尚未部署</div>
-        <label class="field">
-          <span class="field-k">留言内容</span>
-          <textarea id="contractMsg" rows="3" placeholder="写点什么…"></textarea>
-        </label>
-        <div class="field-note" id="contractNote"></div>
-        <div class="btn-row">
-          <button class="primary-btn slim" id="contractDeploy">部署合约</button>
-          <button class="ghost-btn" id="contractUpdate">更新留言</button>
+      <div class="contract-tabs" id="contractTabs">
+        <button class="contract-tab is-active" data-contract-tab="token-create">一键发行</button>
+        <button class="contract-tab" data-contract-tab="tokens">代币管理</button>
+        <button class="contract-tab" data-contract-tab="solidity">Solidity 编辑器</button>
+        <button class="contract-tab" data-contract-tab="interact">合约调用</button>
+        <button class="contract-tab" data-contract-tab="guestbook">链上留言</button>
+      </div>
+
+      <div class="contract-panel is-active" data-contract-panel="token-create">
+        <div class="card studio-card">
+          <div class="card-head"><h3>一键发行 ERC-20 代币</h3><span class="safe-badge">London EVM</span></div>
+          <p class="hint top-hint">固定总量模板没有管理员或增发入口；管理型模板具有发行上限、增发、暂停、销毁和所有权转移功能。</p>
+          <div class="form-grid">
+            <label class="field"><span class="field-k">代币名称</span><input id="tokenName" type="text" maxlength="40" placeholder="例如：Niu Community Token" autocomplete="off"></label>
+            <label class="field"><span class="field-k">代币符号</span><input id="tokenSymbol" type="text" maxlength="11" placeholder="例如：NCT" autocomplete="off"></label>
+            <label class="field"><span class="field-k">初始发行量</span><input id="tokenSupply" type="text" placeholder="100000000" autocomplete="off"></label>
+            <label class="field"><span class="field-k">小数位</span><input id="tokenDecimals" type="text" value="18" autocomplete="off"></label>
+            <label class="field"><span class="field-k">发行模式</span><select id="tokenMode"><option value="fixed">固定总量</option><option value="managed">管理型（可增发、有上限）</option></select></label>
+            <label class="field" id="tokenCapField" hidden><span class="field-k">最大发行量</span><input id="tokenCap" type="text" placeholder="200000000" autocomplete="off"></label>
+            <label class="field"><span class="field-k">发行与接收账户</span><select id="tokenOwner"></select></label>
+          </div>
+          <div class="risk-note">代币合约一经部署无法撤回。名称和符号不代表官方认证；部署前请核对总量、权限和接收账户。</div>
+          <div class="btn-row">
+            <button class="primary-btn slim" id="tokenPrepare">预览并估算 Gas</button>
+            <button class="ghost-btn" id="tokenIssue" disabled>确认发行代币</button>
+          </div>
+          <div class="result" id="tokenIssueResult" hidden></div>
+        </div>
+      </div>
+
+      <div class="contract-panel" data-contract-panel="tokens">
+        <div class="card studio-card">
+          <div class="card-head"><h3>导入与查看代币</h3><button class="ghost-btn" id="tokenRefresh">刷新余额</button></div>
+          <div class="inline-form"><input id="tokenImportAddress" type="text" placeholder="ERC-20 合约地址 0x..." autocomplete="off" spellcheck="false"><button class="ghost-btn" id="tokenImport">导入代币</button></div>
+          <div class="token-list" id="tokenList"><div class="empty">尚未添加代币</div></div>
+        </div>
+        <div class="card studio-card">
+          <div class="card-head"><h3>发送代币</h3></div>
+          <div class="form-grid">
+            <label class="field"><span class="field-k">代币</span><select id="tokenSendAsset"></select></label>
+            <label class="field"><span class="field-k">付款地址</span><select id="tokenSendFrom"></select></label>
+            <label class="field"><span class="field-k">收款地址</span><input id="tokenSendTo" type="text" placeholder="0x..." autocomplete="off" spellcheck="false"></label>
+            <label class="field"><span class="field-k">代币数量</span><input id="tokenSendAmount" type="text" placeholder="0.0" autocomplete="off"></label>
+          </div>
+          <button class="primary-btn slim" id="tokenSend">确认发送代币</button>
+          <div class="result" id="tokenSendResult" hidden></div>
+        </div>
+      </div>
+
+      <div class="contract-panel" data-contract-panel="solidity">
+        <div class="card studio-card">
+          <div class="card-head"><h3>Solidity 开发者模式</h3><span class="danger-badge">高风险</span></div>
+          <div class="risk-note">这里只允许导入固定版本的 @openzeppelin/contracts。请勿部署来源不明的代码；编译成功不代表合约安全。</div>
+          <label class="field"><span class="field-k">源文件名</span><input id="solidityFile" type="text" value="UserContract.sol" autocomplete="off"></label>
+          <label class="field"><span class="field-k">Solidity 源码</span><textarea class="code-editor" id="soliditySource" rows="18" spellcheck="false" aria-label="Solidity 源码编辑器"></textarea></label>
+          <div class="btn-row"><button class="primary-btn slim" id="solidityCompile">编译源码</button></div>
+          <pre class="compiler-output" id="compilerOutput">等待编译</pre>
+        </div>
+        <div class="card studio-card">
+          <div class="card-head"><h3>部署编译结果</h3></div>
+          <div class="form-grid">
+            <label class="field"><span class="field-k">选择合约</span><select id="compiledContract"></select></label>
+            <label class="field"><span class="field-k">签名账户</span><select id="contractDeployFrom"></select></label>
+            <label class="field"><span class="field-k">合约备注</span><input id="contractLabel" type="text" maxlength="80" placeholder="例如：会员积分合约"></label>
+            <label class="field"><span class="field-k">附带 NIU</span><input id="contractDeployValue" type="text" value="0" autocomplete="off"></label>
+          </div>
+          <label class="field"><span class="field-k">构造参数 JSON 数组</span><textarea class="code-field" id="constructorArgs" rows="3" spellcheck="false">[]</textarea></label>
+          <label class="field"><span class="field-k">ABI（编译后自动生成）</span><textarea class="code-field" id="compiledAbi" rows="7" readonly spellcheck="false"></textarea></label>
+          <div class="btn-row"><button class="ghost-btn" id="contractEstimate" disabled>估算部署 Gas</button><button class="primary-btn slim" id="contractDeployCompiled" disabled>部署所选合约</button></div>
+          <div class="result" id="contractDeployResult" hidden></div>
+        </div>
+      </div>
+
+      <div class="contract-panel" data-contract-panel="interact">
+        <div class="card studio-card">
+          <div class="card-head"><h3>导入已有合约</h3></div>
+          <div class="form-grid">
+            <label class="field"><span class="field-k">合约地址</span><input id="contractImportAddress" type="text" placeholder="0x..." autocomplete="off" spellcheck="false"></label>
+            <label class="field"><span class="field-k">合约备注</span><input id="contractImportName" type="text" maxlength="80" placeholder="例如：社区投票"></label>
+          </div>
+          <label class="field"><span class="field-k">ABI JSON 数组</span><textarea class="code-field" id="contractImportAbi" rows="7" spellcheck="false" placeholder='[{"type":"function",...}]'></textarea></label>
+          <button class="ghost-btn" id="contractImport">验证并保存合约</button>
+        </div>
+        <div class="card studio-card">
+          <div class="card-head"><h3>读取或写入合约</h3></div>
+          <label class="field"><span class="field-k">已保存合约</span><select id="savedContract"></select></label>
+          <div class="mono-line" id="savedContractAddress">尚未选择合约</div>
+          <div class="form-grid">
+            <label class="field"><span class="field-k">函数</span><select id="contractFunction"></select></label>
+            <label class="field"><span class="field-k">签名账户（写入时使用）</span><select id="contractCallFrom"></select></label>
+            <label class="field"><span class="field-k">附带 NIU</span><input id="contractCallValue" type="text" value="0" autocomplete="off"></label>
+          </div>
+          <label class="field"><span class="field-k">函数参数 JSON 数组</span><textarea class="code-field" id="contractCallArgs" rows="3" spellcheck="false">[]</textarea></label>
+          <div class="btn-row"><button class="ghost-btn" id="contractRead" disabled>执行只读调用</button><button class="primary-btn slim" id="contractWrite" disabled>签名并写入</button></div>
+          <pre class="compiler-output" id="contractCallOutput">等待选择合约</pre>
+        </div>
+      </div>
+
+      <div class="contract-panel" data-contract-panel="guestbook">
+        <div class="card form-card">
+          <div class="card-head"><h3>内置留言合约</h3></div>
+          <div class="field-k">合约地址</div>
+          <div class="mono-line" id="contractAddr">尚未部署</div>
+          <label class="field"><span class="field-k">留言内容</span><textarea id="contractMsg" rows="3" placeholder="写点什么…"></textarea></label>
+          <div class="field-note" id="contractNote"></div>
+          <div class="btn-row"><button class="primary-btn slim" id="contractDeploy">部署合约</button><button class="ghost-btn" id="contractUpdate">更新留言</button></div>
         </div>
       </div>
     </section>

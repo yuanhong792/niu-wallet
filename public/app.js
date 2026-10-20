@@ -21,6 +21,28 @@
   var demoState = null;
   var openTxHash = null;
   var txDetailCache = Object.create(null);
+  var tokenDraftId = null;
+  var compiledBuild = null;
+  var loadedContract = null;
+  var portfolioCache = null;
+  var DEFAULT_SOLIDITY = [
+    '// SPDX-License-Identifier: MIT',
+    'pragma solidity ^0.8.20;',
+    '',
+    'contract NiuCounter {',
+    '    uint256 public value;',
+    '    event ValueChanged(address indexed author, uint256 value);',
+    '',
+    '    constructor(uint256 firstValue) {',
+    '        value = firstValue;',
+    '    }',
+    '',
+    '    function setValue(uint256 nextValue) external {',
+    '        value = nextValue;',
+    '        emit ValueChanged(msg.sender, nextValue);',
+    '    }',
+    '}'
+  ].join('\n');
 
   /* ---------------- helpers ---------------- */
 
@@ -36,7 +58,7 @@
     var node;
     while ((node = walker.nextNode())) {
       var parent = node.parentElement;
-      if (!parent || /^(SCRIPT|STYLE|OPTION)$/.test(parent.tagName) || parent.closest('#languageSelect')) continue;
+      if (!parent || /^(SCRIPT|STYLE)$/.test(parent.tagName) || parent.closest('#languageSelect')) continue;
       var raw = node.nodeValue;
       var key = raw.trim();
       if (!key) continue;
@@ -156,6 +178,29 @@
     } else {
       toast('当前环境不支持自动复制');
     }
+  }
+
+  function parseArray(value, label) {
+    var parsed;
+    try { parsed = JSON.parse(value || '[]'); } catch (_) { throw new Error((label || '参数') + '必须是有效的 JSON 数组'); }
+    if (!Array.isArray(parsed)) throw new Error((label || '参数') + '必须是 JSON 数组');
+    return parsed;
+  }
+
+  function resultBox(id, message, error) {
+    var node = el(id);
+    node.hidden = false;
+    node.className = 'result' + (error ? ' is-error' : '');
+    text(node, message);
+  }
+
+  function ensureUnlocked(subtitle) {
+    if (!state || !state.locked) return Promise.resolve();
+    return ask({ title: '解锁钱包', sub: subtitle || '签名交易需要解锁钱包。', password: true, placeholder: '输入口令' })
+      .then(function (password) {
+        if (password === null) throw new Error('已取消');
+        return api('/api/unlock', { password: password }).then(function () { if (state) state.locked = false; });
+      });
   }
 
   function showReceiveAddress(address) {
@@ -279,6 +324,8 @@
       blocks: demoBlocks,
       transactions: demoTxs,
       contract: { address: demoAddr(4), message: '牛币钱包 · 跨平台界面原型', updates: '3', owner: demoAddr(0) },
+      tokens: [{ id: 'demo-token', address: demoAddr(5), name: 'Niu Community Token', symbol: 'NCT', decimals: 18, mode: 'fixed' }],
+      developerContracts: [{ id: 'demo-contract', name: 'NiuCounter', contractName: 'NiuCounter', address: demoAddr(6) }],
       walletProtection: '演示数据 · 未连接节点',
       dataPath: '（演示模式）'
     };
@@ -312,6 +359,21 @@
           demoState.contract.message = payload.message;
           return resolve({ hash: '0x' + Math.random().toString(16).slice(2) });
         }
+        if (path === '/api/token/portfolio') return resolve({ tokens: [{
+          id: 'demo-token', address: demoAddr(5), name: 'Niu Community Token', symbol: 'NCT', decimals: 18,
+          mode: 'fixed', totalSupplyFormatted: '100000000', balances: [{ address: demoAddr(0), formatted: '100000000' }, { address: demoAddr(1), formatted: '0' }]
+        }] });
+        if (path === '/api/token/prepare') return resolve({ draftId: 'demo-draft', gas: '780000', gasPriceGwei: '2', estimatedFeeNIU: '0.00156', sourceHash: '0x' + 'ab'.repeat(32), mode: payload.options.mode, name: payload.options.name, symbol: payload.options.symbol });
+        if (path === '/api/token/issue') return resolve({ address: demoAddr(7), hash: '0x' + 'cd'.repeat(32), block: demoHeight + 1 });
+        if (path === '/api/token/import') return resolve({ id: 'demo-token', address: payload.address, name: 'Demo Token', symbol: 'DMT', decimals: 18 });
+        if (path === '/api/token/transfer') return resolve({ hash: '0x' + 'ef'.repeat(32), block: demoHeight + 1 });
+        if (path === '/api/solidity/compile') return resolve({ buildId: 'demo-build', compilerVersion: '0.8.37', evmVersion: 'london', warnings: [], artifacts: [{ name: 'NiuCounter', abi: [{ type: 'constructor', inputs: [{ name: 'firstValue', type: 'uint256' }] }, { type: 'function', name: 'value', inputs: [], outputs: [{ type: 'uint256' }], stateMutability: 'view' }, { type: 'function', name: 'setValue', inputs: [{ name: 'nextValue', type: 'uint256' }], outputs: [], stateMutability: 'nonpayable' }], bytecode: '0x6000', bytecodeBytes: 420, runtimeBytes: 300 }] });
+        if (path === '/api/solidity/estimate') return resolve({ gas: '245000', gasPriceGwei: '2', estimatedFeeNIU: '0.00049', bytecodeBytes: 420 });
+        if (path === '/api/solidity/deploy') return resolve({ id: 'demo-contract', address: demoAddr(6), hash: '0x' + '12'.repeat(32), block: demoHeight + 1 });
+        if (path === '/api/contract/info') return resolve({ id: 'demo-contract', name: 'NiuCounter', address: demoAddr(6), abi: [{ type: 'function', name: 'value', inputs: [], outputs: [{ type: 'uint256' }], stateMutability: 'view' }, { type: 'function', name: 'setValue', inputs: [{ name: 'nextValue', type: 'uint256' }], outputs: [], stateMutability: 'nonpayable' }] });
+        if (path === '/api/contract/import') return resolve({ id: 'demo-contract', address: payload.address, name: payload.name });
+        if (path === '/api/contract/read') return resolve({ result: '42' });
+        if (path === '/api/contract/write') return resolve({ hash: '0x' + '34'.repeat(32), block: demoHeight + 1 });
         if (path === '/api/lock') { demoState = null; return resolve({ locked: true }); }
         if (path === '/api/unlock') return resolve({ unlocked: true });
         if (path === '/api/backup-portable') return resolve({ path: '（演示模式不生成文件）', scope: '可跨电脑恢复' });
@@ -575,6 +637,119 @@
     });
   }
 
+  function fillWalletSelect(id, wallets) {
+    var node = el(id);
+    var previous = node.value;
+    clear(node);
+    (wallets || []).forEach(function (wallet) {
+      var option = document.createElement('option');
+      option.value = wallet.address;
+      text(option, (wallet.name || short(wallet.address)) + ' · ' + fmtNiu(wallet.balance, 3) + ' NIU');
+      node.appendChild(option);
+    });
+    if (previous && (wallets || []).some(function (wallet) { return wallet.address === previous; })) node.value = previous;
+  }
+
+  function renderContractAssets(s) {
+    var tokenSelect = el('tokenSendAsset');
+    var previousToken = tokenSelect.value;
+    clear(tokenSelect);
+    (s.tokens || []).filter(function (token) { return !token.failed; }).forEach(function (token) {
+      var option = document.createElement('option');
+      option.value = token.address;
+      text(option, token.symbol + ' · ' + short(token.address));
+      tokenSelect.appendChild(option);
+    });
+    if (previousToken) tokenSelect.value = previousToken;
+
+    var contracts = el('savedContract');
+    var previousContract = contracts.value;
+    clear(contracts);
+    var emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    text(emptyOption, '选择已保存合约');
+    contracts.appendChild(emptyOption);
+    (s.developerContracts || []).filter(function (item) { return !item.failed; }).forEach(function (item) {
+      var option = document.createElement('option');
+      option.value = item.id;
+      text(option, item.name + ' · ' + short(item.address));
+      contracts.appendChild(option);
+    });
+    if (previousContract && (s.developerContracts || []).some(function (item) { return item.id === previousContract; })) contracts.value = previousContract;
+  }
+
+  function renderPortfolio(data) {
+    portfolioCache = data;
+    var node = el('tokenList');
+    clear(node);
+    var tokens = (data && data.tokens) || [];
+    if (!tokens.length) {
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      text(empty, '尚未添加代币');
+      node.appendChild(empty);
+      return;
+    }
+    tokens.forEach(function (token) {
+      var card = document.createElement('div');
+      card.className = 'token-card';
+      var identity = document.createElement('div');
+      var name = document.createElement('div');
+      name.className = 'token-name';
+      text(name, (token.name || '未知代币') + ' (' + (token.symbol || '?') + ')');
+      var address = document.createElement('div');
+      address.className = 'token-address';
+      text(address, token.address);
+      address.title = token.address;
+      address.addEventListener('click', function () { copy(token.address); });
+      identity.appendChild(name); identity.appendChild(address);
+      var balance = document.createElement('div');
+      balance.className = 'token-balance';
+      var strong = document.createElement('strong');
+      text(strong, token.error ? '读取失败' : fmtNiu(token.walletTotalFormatted, 8) + ' ' + token.symbol);
+      var supply = document.createElement('span');
+      text(supply, token.error ? token.error : '总量 ' + fmtNiu(token.totalSupplyFormatted, 6));
+      balance.appendChild(strong); balance.appendChild(supply);
+      var mode = document.createElement('div');
+      mode.className = 'token-mode';
+      text(mode, token.mode === 'managed' ? '管理型' : (token.mode === 'fixed' ? '固定总量' : '已导入'));
+      card.appendChild(identity); card.appendChild(balance); card.appendChild(mode);
+      node.appendChild(card);
+    });
+  }
+
+  function loadPortfolio() {
+    return api('/api/token/portfolio', {}).then(function (data) { renderPortfolio(data); return data; })
+      .catch(function (error) { resultBox('tokenSendResult', error.message, true); });
+  }
+
+  function signatureOf(item) {
+    return item.name + '(' + (item.inputs || []).map(function (input) { return input.type; }).join(',') + ')';
+  }
+
+  function showLoadedContract(record) {
+    loadedContract = record;
+    text(el('savedContractAddress'), record ? record.address : '尚未选择合约');
+    var select = el('contractFunction');
+    clear(select);
+    (record && record.abi || []).filter(function (item) { return item.type === 'function'; }).forEach(function (item) {
+      var option = document.createElement('option');
+      option.value = signatureOf(item);
+      option.dataset.mode = (item.stateMutability === 'view' || item.stateMutability === 'pure') ? 'read' : 'write';
+      text(option, option.value + ' · ' + (option.dataset.mode === 'read' ? '只读' : '写入'));
+      select.appendChild(option);
+    });
+    updateContractButtons();
+    text(el('contractCallOutput'), record ? '请选择函数并填写 JSON 参数数组' : '等待选择合约');
+  }
+
+  function updateContractButtons() {
+    var option = el('contractFunction').selectedOptions[0];
+    var mode = option && option.dataset.mode;
+    el('contractRead').disabled = mode !== 'read';
+    el('contractWrite').disabled = mode !== 'write';
+  }
+
   function renderForms(s) {
     var from = el('sendFrom');
     var prevFrom = from.value;
@@ -586,6 +761,9 @@
       from.appendChild(o);
     });
     if (prevFrom) from.value = prevFrom;
+
+    ['tokenOwner', 'tokenSendFrom', 'contractDeployFrom', 'contractCallFrom'].forEach(function (id) { fillWalletSelect(id, s.wallets || []); });
+    renderContractAssets(s);
 
     var recvSel = el('receiveSelect');
     var prevRecv = recvSel.value;
@@ -737,6 +915,15 @@
     if (g) go(g.getAttribute('data-goto'));
   });
 
+  el('contractTabs').addEventListener('click', function (event) {
+    var button = event.target.closest('[data-contract-tab]');
+    if (!button) return;
+    var tab = button.getAttribute('data-contract-tab');
+    document.querySelectorAll('[data-contract-tab]').forEach(function (item) { item.classList.toggle('is-active', item === button); });
+    document.querySelectorAll('[data-contract-panel]').forEach(function (item) { item.classList.toggle('is-active', item.getAttribute('data-contract-panel') === tab); });
+    if (tab === 'tokens') loadPortfolio();
+  });
+
   /* ---------------- actions ---------------- */
 
   el('copyActive').addEventListener('click', function () {
@@ -842,6 +1029,185 @@
     }).then(function () {
       btn.disabled = false;
     });
+  });
+
+  el('tokenMode').addEventListener('change', function () {
+    el('tokenCapField').hidden = this.value !== 'managed';
+    tokenDraftId = null;
+    el('tokenIssue').disabled = true;
+  });
+
+  ['tokenName', 'tokenSymbol', 'tokenSupply', 'tokenDecimals', 'tokenCap', 'tokenOwner'].forEach(function (id) {
+    el(id).addEventListener('input', function () { tokenDraftId = null; el('tokenIssue').disabled = true; });
+    el(id).addEventListener('change', function () { tokenDraftId = null; el('tokenIssue').disabled = true; });
+  });
+
+  el('tokenPrepare').addEventListener('click', function () {
+    var button = this;
+    var options = {
+      name: el('tokenName').value.trim(), symbol: el('tokenSymbol').value.trim(), supply: el('tokenSupply').value.trim(),
+      decimals: el('tokenDecimals').value.trim(), mode: el('tokenMode').value, cap: el('tokenCap').value.trim()
+    };
+    button.disabled = true;
+    ensureUnlocked('发行代币前需要解锁钱包并估算部署 Gas。').then(function () {
+      return api('/api/token/prepare', { options: options, from: el('tokenOwner').value });
+    }).then(function (draft) {
+      tokenDraftId = draft.draftId;
+      el('tokenIssue').disabled = false;
+      resultBox('tokenIssueResult', '预览完成：预计 Gas ' + draft.gas + '，预计手续费 ' + fmtNiu(draft.estimatedFeeNIU, 8) + ' NIU。请再次核对总量和权限后确认发行。', false);
+    }).catch(function (error) {
+      if (error.message !== '已取消') resultBox('tokenIssueResult', error.message, true);
+    }).then(function () { button.disabled = false; });
+  });
+
+  el('tokenIssue').addEventListener('click', function () {
+    if (!tokenDraftId) { resultBox('tokenIssueResult', '请先生成发行预览', true); return; }
+    var button = this;
+    button.disabled = true;
+    api('/api/token/issue', { draftId: tokenDraftId }).then(function (result) {
+      tokenDraftId = null;
+      resultBox('tokenIssueResult', '代币发行成功。合约地址：' + result.address + '，交易哈希：' + result.hash, false);
+      return loadState().then(loadPortfolio);
+    }).catch(function (error) { resultBox('tokenIssueResult', error.message, true); })
+      .then(function () { button.disabled = !tokenDraftId; });
+  });
+
+  el('tokenRefresh').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    loadPortfolio().then(function () { button.disabled = false; });
+  });
+
+  el('tokenImport').addEventListener('click', function () {
+    var address = el('tokenImportAddress').value.trim(), button = this;
+    button.disabled = true;
+    api('/api/token/import', { address: address }).then(function (token) {
+      toast('代币已导入');
+      el('tokenImportAddress').value = '';
+      return loadState().then(loadPortfolio).then(function () { resultBox('tokenSendResult', '已导入 ' + token.name + ' (' + token.symbol + ')', false); });
+    }).catch(function (error) { resultBox('tokenSendResult', error.message, true); })
+      .then(function () { button.disabled = false; });
+  });
+
+  el('tokenSend').addEventListener('click', function () {
+    var button = this;
+    button.disabled = true;
+    ensureUnlocked('发送代币需要解锁钱包并签名。').then(function () {
+      return api('/api/token/transfer', {
+        address: el('tokenSendAsset').value, from: el('tokenSendFrom').value,
+        to: el('tokenSendTo').value.trim(), amount: el('tokenSendAmount').value.trim()
+      });
+    }).then(function (result) {
+      resultBox('tokenSendResult', '代币转账已确认，交易哈希：' + result.hash, false);
+      el('tokenSendAmount').value = '';
+      return loadState().then(loadPortfolio);
+    }).catch(function (error) { if (error.message !== '已取消') resultBox('tokenSendResult', error.message, true); })
+      .then(function () { button.disabled = false; });
+  });
+
+  el('solidityCompile').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    text(el('compilerOutput'), '正在编译 Solidity…');
+    api('/api/solidity/compile', { source: el('soliditySource').value, fileName: el('solidityFile').value.trim() })
+      .then(function (build) {
+        compiledBuild = build;
+        var select = el('compiledContract'); clear(select);
+        build.artifacts.forEach(function (artifact) {
+          var option = document.createElement('option'); option.value = artifact.name;
+          text(option, artifact.name + ' · ' + artifact.bytecodeBytes + ' 字节'); select.appendChild(option);
+        });
+        select.dispatchEvent(new Event('change'));
+        el('contractEstimate').disabled = false; el('contractDeployCompiled').disabled = false;
+        var warnings = (build.warnings || []).map(function (item) { return item.message; }).join('\n');
+        text(el('compilerOutput'), '编译成功 · solc ' + build.compilerVersion + ' · EVM ' + build.evmVersion + '\n源码哈希：' + build.sourceHash + (warnings ? '\n\n警告：\n' + warnings : ''));
+      }).catch(function (error) {
+        compiledBuild = null; el('contractEstimate').disabled = true; el('contractDeployCompiled').disabled = true;
+        text(el('compilerOutput'), '编译失败：\n' + error.message);
+      }).then(function () { button.disabled = false; });
+  });
+
+  el('compiledContract').addEventListener('change', function () {
+    if (!compiledBuild) return;
+    var artifact = compiledBuild.artifacts.find(function (item) { return item.name === el('compiledContract').value; });
+    el('compiledAbi').value = artifact ? JSON.stringify(artifact.abi, null, 2) : '';
+    var inputs = artifact && artifact.constructorInputs || [];
+    el('constructorArgs').value = JSON.stringify(inputs.map(function (item) { return '<' + (item.name || 'arg') + ':' + item.type + '>'; }), null, 2);
+  });
+
+  function compiledPayload() {
+    if (!compiledBuild) throw new Error('请先编译 Solidity 源码');
+    return {
+      buildId: compiledBuild.buildId, contractName: el('compiledContract').value,
+      args: parseArray(el('constructorArgs').value, '构造参数'), from: el('contractDeployFrom').value,
+      value: el('contractDeployValue').value.trim() || '0', label: el('contractLabel').value.trim()
+    };
+  }
+
+  el('contractEstimate').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    try {
+      var payload = compiledPayload();
+      ensureUnlocked('估算部署 Gas 需要使用钱包账户。').then(function () { return api('/api/solidity/estimate', payload); })
+        .then(function (result) { resultBox('contractDeployResult', '预计 Gas ' + result.gas + '，预计手续费 ' + fmtNiu(result.estimatedFeeNIU, 8) + ' NIU，部署字节码 ' + result.bytecodeBytes + ' 字节。', false); })
+        .catch(function (error) { if (error.message !== '已取消') resultBox('contractDeployResult', error.message, true); })
+        .then(function () { button.disabled = false; });
+    } catch (error) { resultBox('contractDeployResult', error.message, true); button.disabled = false; }
+  });
+
+  el('contractDeployCompiled').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    try {
+      var payload = compiledPayload();
+      ensureUnlocked('部署合约需要解锁钱包并签名。').then(function () { return api('/api/solidity/deploy', payload); })
+        .then(function (result) {
+          resultBox('contractDeployResult', '合约部署成功：' + result.address + '，交易哈希：' + result.hash, false);
+          return loadState();
+        }).catch(function (error) { if (error.message !== '已取消') resultBox('contractDeployResult', error.message, true); })
+        .then(function () { button.disabled = false; });
+    } catch (error) { resultBox('contractDeployResult', error.message, true); button.disabled = false; }
+  });
+
+  el('contractImport').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    try {
+      var abi = JSON.parse(el('contractImportAbi').value || '[]');
+      api('/api/contract/import', { address: el('contractImportAddress').value.trim(), name: el('contractImportName').value.trim(), abi: abi })
+        .then(function (result) { toast('合约已保存'); return loadState().then(function () { el('savedContract').value = result.id; el('savedContract').dispatchEvent(new Event('change')); }); })
+        .catch(function (error) { text(el('contractCallOutput'), error.message); })
+        .then(function () { button.disabled = false; });
+    } catch (_) { text(el('contractCallOutput'), 'ABI必须是有效的JSON数组'); button.disabled = false; }
+  });
+
+  el('savedContract').addEventListener('change', function () {
+    var id = this.value;
+    if (!id) { showLoadedContract(null); return; }
+    text(el('contractCallOutput'), '正在读取合约 ABI…');
+    api('/api/contract/info', { id: id }).then(showLoadedContract)
+      .catch(function (error) { showLoadedContract(null); text(el('contractCallOutput'), error.message); });
+  });
+
+  el('contractFunction').addEventListener('change', updateContractButtons);
+
+  el('contractRead').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    try {
+      var args = parseArray(el('contractCallArgs').value, '函数参数');
+      api('/api/contract/read', { id: loadedContract.id, signature: el('contractFunction').value, args: args })
+        .then(function (result) { text(el('contractCallOutput'), JSON.stringify(result.result, null, 2)); })
+        .catch(function (error) { text(el('contractCallOutput'), error.message); })
+        .then(function () { button.disabled = false; updateContractButtons(); });
+    } catch (error) { text(el('contractCallOutput'), error.message); button.disabled = false; updateContractButtons(); }
+  });
+
+  el('contractWrite').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    try {
+      var args = parseArray(el('contractCallArgs').value, '函数参数');
+      ensureUnlocked('写入合约需要解锁钱包并签名。').then(function () {
+        return api('/api/contract/write', { id: loadedContract.id, signature: el('contractFunction').value, args: args, from: el('contractCallFrom').value, value: el('contractCallValue').value.trim() || '0' });
+      }).then(function (result) { text(el('contractCallOutput'), '合约调用已确认，交易哈希：' + result.hash); return loadState(); })
+        .catch(function (error) { if (error.message !== '已取消') text(el('contractCallOutput'), error.message); })
+        .then(function () { button.disabled = false; updateContractButtons(); });
+    } catch (error) { text(el('contractCallOutput'), error.message); button.disabled = false; updateContractButtons(); }
   });
 
   el('contractDeploy').addEventListener('click', function () {
@@ -961,6 +1327,7 @@
     }
   }
 
+  el('soliditySource').value = DEFAULT_SOLIDITY;
   rememberStaticTranslations();
   setLanguage(preferredLanguage(), false).catch(function () {
     currentLanguage = 'zh-CN';

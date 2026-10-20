@@ -6,9 +6,11 @@ import {rmSync,existsSync,readFileSync,mkdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {NiuLab,ROOT} from './lab.mjs';
 
-// Use the packaged node binary so the test exercises the same code path a
-// downloader takes. Falls back to the sibling development build if absent.
-const NODE_BIN=existsSync(resolve(ROOT,'bin/niu-geth-candidate.exe'))?resolve(ROOT,'bin/niu-geth-candidate.exe'):resolve(ROOT,'../../niu-evm/bin/niu-geth-candidate.exe');
+// Use the node binary for the current operating system. Release workspaces keep
+// both files side by side, so preferring the .exe on macOS would try to execute
+// a Windows PE binary and would not exercise the installed macOS application.
+const nodeName=process.platform==='win32'?'niu-geth-candidate.exe':'niu-geth-candidate';
+const NODE_BIN=existsSync(resolve(ROOT,'bin',nodeName))?resolve(ROOT,'bin',nodeName):resolve(ROOT,'../../niu-evm/bin',nodeName);
 const base=resolve(ROOT,'runtime/lock-test');
 const LOCKED=/locked|\u9501\u5b9a/;
 function clean(){if(existsSync(base))rmSync(base,{recursive:true,force:true});mkdirSync(base,{recursive:true});}

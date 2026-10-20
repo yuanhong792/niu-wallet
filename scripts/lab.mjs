@@ -1,19 +1,21 @@
 import {spawn,spawnSync} from 'node:child_process';
 import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,createWriteStream,unlinkSync,statSync} from 'node:fs';
 import net from 'node:net';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {Wallet,JsonRpcProvider,ContractFactory,Contract,isAddress,getAddress,parseEther,formatEther,formatUnits} from 'ethers';
+import {Wallet,JsonRpcProvider,ContractFactory,Contract,Interface,isAddress,getAddress,parseEther,parseUnits,formatEther,formatUnits} from 'ethers';
 import solc from 'solc';
 import {exportPortable,importPortable} from './portable-vault.mjs';
 import {loadNetwork,p2pConfig,syncPending} from './network.mjs';
 import {NiuProvider} from './local-provider.mjs';
 import {crypt,walletProtection} from './vault-crypto.mjs';
+import {ContractStudio,ERC20_ABI} from './contract-studio.mjs';
 export const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export const CHAIN_ID=26261015;
 export const LOCK_IDLE_MS=5*60*1000;   // auto-lock the vault after 5 minutes without a signing action
 export const TRANSACTION_LIMIT=200;    // ledger entries kept in activity.json (incoming + outgoing)
+const UINT256_MAX=(1n<<256n)-1n;
 // geth only persists the dirty trie state -- the chain head state -- during an
 // orderly shutdown. Killing the process before that flush completes loses it:
 // the next start logs "Head state missing", falls back to the genesis head and
@@ -34,6 +36,7 @@ export class NiuLab {
     this.base=base;this.ports=ports;this.p2p=p2p;this.auth=auth;this.children=[];this.logs=[];this.providers=[];
     this.nodeBin=nodeBin;this.ready=false;this.miningUntil=null;this.timer=null;this.busy=false;this.stopping=false;
     this.wallets=[];this.walletAddresses=[];this.locked=true;
+    this.contractStudio=new ContractStudio(ROOT);this.tokenDrafts=new Map();
     this.network=network;
     if(this.network){this.ports=ports.slice(0,1);this.p2p=p2p.slice(0,1);this.auth=auth.slice(0,1);}
   }
@@ -85,6 +88,8 @@ export class NiuLab {
     else if(JSON.stringify(JSON.parse(readFileSync(configFile)))!==JSON.stringify(genesis))throw Error('创世配置与当前程序不同，已停止，防止混用网络。');
     this.metaFile=resolve(this.base,'activity.json');
     this.meta=existsSync(this.metaFile)?JSON.parse(readFileSync(this.metaFile)): {transactions:[],contract:null};
+    if(!Array.isArray(this.meta.tokens))this.meta.tokens=[];
+    if(!Array.isArray(this.meta.developerContracts))this.meta.developerContracts=[];
     try{
       for(let i=0;i<this.ports.length;i++){
         const nodeName=(this.network?'niu-geth-candidate':'geth')+(process.platform==='win32'?'.exe':'');
@@ -274,6 +279,178 @@ export class NiuLab {
     const c=new Contract(this.meta.contract.address,this.artifact().abi,this.requireUnlocked()[0].connect(this.providers[0]));
     const tx=await c.setMessage(message,{gasPrice:2000000000n,type:0});await this.confirmed(tx,'更新留言');return {hash:tx.hash};
   });}
+  signer(from){
+    const wallets=this.requireUnlocked();
+    const wallet=from===undefined||from===null||from===''?wallets[0]:wallets.find(item=>item.address.toLowerCase()===String(from).toLowerCase());
+    if(!wallet)throw Error('签名账户不属于当前钱包');
+    return wallet.connect(this.providers[0]);
+  }
+  contractArgs(args){
+    if(!Array.isArray(args)||args.length>32)throw Error('构造参数或函数参数必须是最多32项的JSON数组');
+    const size=Buffer.byteLength(JSON.stringify(args,(_key,item)=>typeof item==='bigint'?item.toString():item));
+    if(size>65536)throw Error('合约参数不能超过64KB');
+    return args;
+  }
+  contractValue(value){
+    const text=value===undefined||value===null||value===''?'0':String(value);
+    if(!/^\d+(\.\d{1,18})?$/.test(text)||text.length>60)throw Error('附带NIU数量格式不正确');
+    return parseEther(text);
+  }
+  contractResult(value){
+    if(typeof value==='bigint')return value.toString();
+    if(Array.isArray(value))return Array.from(value,item=>this.contractResult(item));
+    if(value&&typeof value==='object'){
+      if(typeof value.toHexString==='function')return value.toHexString();
+      const out={};for(const [key,item] of Object.entries(value))if(!/^\d+$/.test(key))out[key]=this.contractResult(item);
+      return Object.keys(out).length?out:String(value);
+    }
+    return value;
+  }
+  compileSolidity(source,fileName){return this.contractStudio.compile(source,fileName);}
+  deploymentSpec(buildId,contractName,args,from,value){
+    const {build,artifact}=this.contractStudio.artifact(buildId,contractName);
+    return {build,artifact,args:this.contractArgs(args),signer:this.signer(from),value:this.contractValue(value)};
+  }
+  async deploymentEstimate(buildId,contractName,args,from,value){
+    const spec=this.deploymentSpec(buildId,contractName,args,from,value);
+    const factory=new ContractFactory(spec.artifact.abi,spec.artifact.bytecode,spec.signer);
+    const request=await factory.getDeployTransaction(...spec.args,{value:spec.value,gasPrice:2000000000n,type:0});
+    const gas=await spec.signer.estimateGas(request),fee=gas*2000000000n;
+    return {gas:String(gas),gasPriceGwei:'2',estimatedFeeNIU:formatEther(fee),bytecodeBytes:spec.artifact.bytecodeBytes};
+  }
+  async deployCompiled(buildId,contractName,args,from,value,label){return this.exclusive(async()=>{
+    const spec=this.deploymentSpec(buildId,contractName,args,from,value);await this.requireMining();
+    if(this.meta.developerContracts.length>=20)throw Error('最多保存20个合约，请先备份并整理合约记录');
+    const factory=new ContractFactory(spec.artifact.abi,spec.artifact.bytecode,spec.signer);
+    const request=await factory.getDeployTransaction(...spec.args,{value:spec.value,gasPrice:2000000000n,type:0});
+    const estimate=await spec.signer.estimateGas(request),gasLimit=estimate+estimate/5n;
+    const contract=await factory.deploy(...spec.args,{value:spec.value,gasPrice:2000000000n,gasLimit,type:0});
+    const tx=contract.deploymentTransaction(),address=await contract.getAddress();
+    const record={id:randomUUID(),name:String(label||contractName).trim().slice(0,80)||contractName,contractName,address,
+      abi:spec.artifact.abi,sourceHash:spec.build.sourceHash,deployHash:tx.hash,createdAt:new Date().toISOString(),pending:true};
+    this.meta.developerContracts.unshift(record);save(this.metaFile,this.meta);
+    try{const receipt=await this.confirmed(tx,`部署合约 ${contractName}`);record.pending=false;record.block=receipt.blockNumber;save(this.metaFile,this.meta);return {id:record.id,address,hash:tx.hash,block:receipt.blockNumber};}
+    catch(e){record.pending=false;record.failed=true;save(this.metaFile,this.meta);throw e;}
+  });}
+  contractRecord(id){
+    const record=(this.meta.developerContracts||[]).find(item=>item.id===id);
+    if(!record)throw Error('没有找到已保存的合约');
+    return record;
+  }
+  contractInfo(id){const record=this.contractRecord(id);return {...record};}
+  async importContract(address,name,abi){return this.exclusive(async()=>{
+    if(!isAddress(address)||/^0x0{40}$/i.test(address))throw Error('合约地址格式不正确');
+    const normalized=getAddress(address),code=await this.providers[0].getCode(normalized);if(code==='0x')throw Error('该地址没有合约代码');
+    if(!Array.isArray(abi)||!abi.length||Buffer.byteLength(JSON.stringify(abi))>65536)throw Error('ABI必须是有效且不超过64KB的JSON数组');
+    try{new Interface(abi);}catch{throw Error('ABI格式无效');}
+    this.meta.developerContracts||=[];
+    let record=this.meta.developerContracts.find(item=>item.address.toLowerCase()===normalized.toLowerCase());
+    if(record){record.abi=abi;record.name=String(name||record.name).trim().slice(0,80)||record.name;}
+    else{
+      if(this.meta.developerContracts.length>=20)throw Error('最多保存20个合约');
+      record={id:randomUUID(),name:String(name||'导入的合约').trim().slice(0,80)||'导入的合约',contractName:'Imported',address:normalized,abi,createdAt:new Date().toISOString(),imported:true};
+      this.meta.developerContracts.unshift(record);
+    }
+    save(this.metaFile,this.meta);return {id:record.id,address:record.address,name:record.name};
+  });}
+  async readContract(id,signature,args){
+    const record=this.contractRecord(id),fragment=new Interface(record.abi).getFunction(signature);
+    if(!fragment||!['view','pure'].includes(fragment.stateMutability))throw Error('请选择只读函数');
+    const contract=new Contract(record.address,record.abi,this.providers[0]);
+    return {result:this.contractResult(await contract.getFunction(signature)(...this.contractArgs(args)))};
+  }
+  async writeContract(id,signature,args,from,value){return this.exclusive(async()=>{
+    const record=this.contractRecord(id),fragment=new Interface(record.abi).getFunction(signature);
+    if(!fragment||['view','pure'].includes(fragment.stateMutability))throw Error('请选择写入函数');
+    const signer=this.signer(from),amount=this.contractValue(value);if(amount>0n&&fragment.stateMutability!=='payable')throw Error('这个函数不能接收NIU');
+    await this.requireMining();const contract=new Contract(record.address,record.abi,signer),fn=contract.getFunction(signature),callArgs=this.contractArgs(args);
+    const overrides={value:amount,gasPrice:2000000000n,type:0};const gas=await fn.estimateGas(...callArgs,overrides);
+    const tx=await fn(...callArgs,{...overrides,gasLimit:gas+gas/5n});const receipt=await this.confirmed(tx,`调用合约 ${record.name}`);
+    return {hash:tx.hash,block:receipt.blockNumber};
+  });}
+  tokenOptions(value){
+    if(!value||typeof value!=='object')throw Error('代币参数无效');
+    const name=String(value.name||'').trim(),symbol=String(value.symbol||'').trim().toUpperCase();
+    const decimalsText=String(value.decimals??'').trim(),decimals=Number(decimalsText),mode=String(value.mode||'');
+    const supply=String(value.supply||'').trim(),cap=String(value.cap||'').trim();
+    if(!name||name.length>40||/[\u0000-\u001f]/.test(name))throw Error('代币名称需要1至40个字符');
+    if(!/^[A-Z][A-Z0-9]{1,10}$/.test(symbol))throw Error('代币符号需要2至11位大写字母或数字');
+    if(!/^\d+$/.test(decimalsText)||!Number.isInteger(decimals)||decimals<0||decimals>18)throw Error('小数位必须是0至18的整数');
+    if(mode!=='fixed'&&mode!=='managed')throw Error('代币发行模式无效');
+    let initialUnits;try{initialUnits=parseUnits(supply,decimals);}catch{throw Error('初始发行量格式与小数位不匹配');}
+    if(initialUnits<=0n)throw Error('初始发行量必须大于0');
+    let capUnits=initialUnits;
+    if(mode==='managed'){
+      try{capUnits=parseUnits(cap,decimals);}catch{throw Error('最大发行量格式与小数位不匹配');}
+      if(capUnits<initialUnits)throw Error('最大发行量不能小于初始发行量');
+    }
+    if(initialUnits>UINT256_MAX||capUnits>UINT256_MAX)throw Error('发行量超过ERC-20可表示的最大值');
+    return {name,symbol,decimals,mode,supply,cap:mode==='managed'?cap:supply,initialUnits,capUnits};
+  }
+  async prepareToken(options,from){return this.exclusive(async()=>{
+    const token=this.tokenOptions(options),signer=this.signer(from),compiled=this.contractStudio.compileTemplate(token.mode);
+    const contractName=token.mode==='managed'?'NiuManagedToken':'NiuFixedToken';
+    const args=token.mode==='managed'?[token.name,token.symbol,token.decimals,signer.address,token.initialUnits,token.capUnits]:[token.name,token.symbol,token.decimals,signer.address,token.initialUnits];
+    const estimate=await this.deploymentEstimate(compiled.buildId,contractName,args,signer.address,'0');
+    while(this.tokenDrafts.size>=10)this.tokenDrafts.delete(this.tokenDrafts.keys().next().value);
+    const draftId=randomUUID();this.tokenDrafts.set(draftId,{createdAt:Date.now(),token,from:signer.address,buildId:compiled.buildId,contractName,args,sourceHash:compiled.sourceHash,abi:compiled.artifacts[0].abi});
+    return {draftId,...estimate,name:token.name,symbol:token.symbol,decimals:token.decimals,mode:token.mode,supply:token.supply,cap:token.cap,sourceHash:compiled.sourceHash};
+  });}
+  async issueToken(draftId){return this.exclusive(async()=>{
+    const draft=this.tokenDrafts.get(draftId);if(!draft||Date.now()-draft.createdAt>20*60*1000)throw Error('代币预览已过期，请重新生成');
+    const {artifact}=this.contractStudio.artifact(draft.buildId,draft.contractName),signer=this.signer(draft.from);await this.requireMining();
+    this.meta.tokens||=[];this.meta.developerContracts||=[];
+    if(this.meta.tokens.length>=20)throw Error('最多保存20种代币');
+    if(this.meta.developerContracts.length>=20)throw Error('合约记录已达到20个上限');
+    const factory=new ContractFactory(artifact.abi,artifact.bytecode,signer),request=await factory.getDeployTransaction(...draft.args,{gasPrice:2000000000n,type:0});
+    const estimate=await signer.estimateGas(request),contract=await factory.deploy(...draft.args,{gasPrice:2000000000n,gasLimit:estimate+estimate/5n,type:0});
+    const tx=contract.deploymentTransaction(),address=await contract.getAddress();
+    const token={id:randomUUID(),address,name:draft.token.name,symbol:draft.token.symbol,decimals:draft.token.decimals,mode:draft.token.mode,
+      supply:draft.token.supply,cap:draft.token.cap,owner:signer.address,deployHash:tx.hash,sourceHash:draft.sourceHash,createdAt:new Date().toISOString(),pending:true};
+    const contractRecord={id:randomUUID(),name:`${token.name} (${token.symbol})`,contractName:draft.contractName,address,abi:draft.abi,sourceHash:draft.sourceHash,deployHash:tx.hash,createdAt:token.createdAt,pending:true};
+    this.meta.tokens.unshift(token);this.meta.developerContracts.unshift(contractRecord);save(this.metaFile,this.meta);
+    try{const receipt=await this.confirmed(tx,`发行代币 ${token.symbol}`);token.pending=false;token.block=receipt.blockNumber;contractRecord.pending=false;contractRecord.block=receipt.blockNumber;save(this.metaFile,this.meta);this.tokenDrafts.delete(draftId);return {address,hash:tx.hash,block:receipt.blockNumber,token};}
+    catch(e){token.pending=false;token.failed=true;contractRecord.pending=false;contractRecord.failed=true;save(this.metaFile,this.meta);throw e;}
+  });}
+  async tokenMetadata(address){
+    if(!isAddress(address)||/^0x0{40}$/i.test(address))throw Error('代币合约地址格式不正确');
+    const normalized=getAddress(address);if(await this.providers[0].getCode(normalized)==='0x')throw Error('该地址没有合约代码');
+    const contract=new Contract(normalized,ERC20_ABI,this.providers[0]);
+    let name,symbol,decimals,totalSupply;try{[name,symbol,decimals,totalSupply]=await Promise.all([contract.name(),contract.symbol(),contract.decimals(),contract.totalSupply()]);}catch{throw Error('该合约不符合可识别的ERC-20接口');}
+    name=String(name).slice(0,80);symbol=String(symbol).slice(0,20);decimals=Number(decimals);
+    if(!name||!symbol||!Number.isInteger(decimals)||decimals<0||decimals>36)throw Error('代币元数据无效');
+    return {address:normalized,name,symbol,decimals,totalSupply:String(totalSupply)};
+  }
+  async importToken(address){return this.exclusive(async()=>{
+    this.meta.tokens||=[];
+    const info=await this.tokenMetadata(address);let token=this.meta.tokens.find(item=>item.address.toLowerCase()===info.address.toLowerCase());
+    if(token)Object.assign(token,info,{imported:token.imported||!token.deployHash});
+    else{if(this.meta.tokens.length>=20)throw Error('最多保存20种代币');token={id:randomUUID(),...info,imported:true,createdAt:new Date().toISOString()};this.meta.tokens.unshift(token);}
+    save(this.metaFile,this.meta);return token;
+  });}
+  async tokenPortfolio(){
+    const result=[];
+    for(const saved of (this.meta.tokens||[])){
+      try{
+        const info=await this.tokenMetadata(saved.address),contract=new Contract(info.address,ERC20_ABI,this.providers[0]);
+        const raw=await Promise.all(this.walletAddresses.map(address=>contract.balanceOf(address)));
+        const walletTotalRaw=raw.reduce((sum,item)=>sum+item,0n);
+        result.push({...saved,...info,totalSupplyFormatted:formatUnits(info.totalSupply,info.decimals),walletTotalRaw:String(walletTotalRaw),walletTotalFormatted:formatUnits(walletTotalRaw,info.decimals),balances:this.walletAddresses.map((address,index)=>({address,raw:String(raw[index]),formatted:formatUnits(raw[index],info.decimals)}))});
+      }catch(e){result.push({...saved,error:e.shortMessage||e.message});}
+    }
+    return {tokens:result};
+  }
+  async transferToken(address,from,to,amount){return this.exclusive(async()=>{
+    const token=(this.meta.tokens||[]).find(item=>item.address.toLowerCase()===String(address).toLowerCase());if(!token)throw Error('请先导入这个代币');
+    if(!isAddress(to)||/^0x0{40}$/i.test(to))throw Error('代币收款地址格式不正确');
+    let units;try{units=parseUnits(String(amount),Number(token.decimals));}catch{throw Error('代币数量格式不正确');}if(units<=0n)throw Error('代币数量必须大于0');
+    if(units>UINT256_MAX)throw Error('代币数量超过ERC-20可表示的最大值');
+    const signer=this.signer(from);await this.requireMining();const contract=new Contract(token.address,ERC20_ABI,signer);
+    if(await contract.balanceOf(signer.address)<units)throw Error('代币余额不足');
+    const gas=await contract.transfer.estimateGas(getAddress(to),units,{gasPrice:2000000000n,type:0});
+    const tx=await contract.transfer(getAddress(to),units,{gasPrice:2000000000n,gasLimit:gas+gas/5n,type:0});const receipt=await this.confirmed(tx,`发送代币 ${token.symbol}`);
+    return {hash:tx.hash,block:receipt.blockNumber};
+  });}
   async newAddress(label){return this.exclusive(async()=>{
     if(typeof label!=='string'||label.trim().length>40)throw Error('地址备注最多40个字符');
     const unlocked=this.requireUnlocked();
@@ -446,7 +623,10 @@ export class NiuLab {
       mining,miningUntil:this.miningUntil,busy:this.busy,locked:this.locked,
       wallets:this.walletAddresses.map((a,i)=>({address:a,balance:formatEther(balances[i]),name:this.meta.receiveLabels?.[a]||(i===0?'默认挖矿地址':`收款地址${i+1}`)})),
       walletTotal:formatEther(balances.reduce((sum,balance)=>sum+balance,0n)),contacts:this.meta.contacts||[],backupRequired:this.walletAddresses.some(a=>!(this.meta.backedUpAddresses||[]).includes(a)),activeReceivingAddress:this.meta.activeReceivingAddress||this.walletAddresses[0],
-      blocks,transactions:this.meta.transactions,contract,walletProtection:walletProtection(),dataPath:this.base};
+      blocks,transactions:this.meta.transactions,contract,
+      tokens:(this.meta.tokens||[]).map(({id,address,name,symbol,decimals,mode,pending,failed})=>({id,address,name,symbol,decimals,mode,pending,failed})),
+      developerContracts:(this.meta.developerContracts||[]).map(({id,name,contractName,address,pending,failed,imported})=>({id,name,contractName,address,pending,failed,imported})),
+      walletProtection:walletProtection(),dataPath:this.base};
   }
   async close(){
     this.stopping=true;this.ready=false;clearTimeout(this.timer);

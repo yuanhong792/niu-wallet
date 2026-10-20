@@ -1,16 +1,18 @@
 {
   "name": "niu-wallet-local-alpha",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node scripts/server.mjs",
     "test": "node --test scripts/*.test.mjs",
+    "test:contracts": "node scripts/contract-integration.mjs",
     "desktop": "pnpm --dir desktop start",
     "dist:mac": "pnpm --dir desktop dist:mac",
     "dist:win": "pnpm --dir desktop dist:win"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "5.6.1",
     "ethers": "6.17.0",
     "qrcode": "1.5.4",
     "solc": "0.8.37"

@@ -4,7 +4,7 @@
 
 牛币钱包是牛链（NIU）桌面钱包。当前提供 Windows x64 与 macOS Apple Silicon（arm64）版本；两端均接入同一条 NIU 网络。
 
-> **当前版本：** macOS 与 Windows 均为 `v0.3.8`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
+> **当前版本：** macOS 与 Windows 均为 `v0.3.9`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
 
 [白皮书 V3.0](docs/牛链NIU白皮书V3.0.md) · [V3.0 Word](docs/牛链NIU白皮书V3.0.docx) · [技术白皮书 V2.0](docs/牛链NIU白皮书V2.0.md) · [安全状态](SECURITY.md)
 
@@ -27,7 +27,8 @@
 - 接收：选择或新增收款地址，复制地址，并显示该地址的二维码。
 - 交易记录：点击任意交易可展开完整链上明细，包括交易哈希、转出方、收款方、时间、金额、手续费、区块哈希、确认数、Nonce、Gas、交易类型、Chain ID 与输入数据。
 - 挖矿：在钱包中主动开启或停止 PoW 挖矿。
-- 智能合约：部署并调用 Solidity 合约。
+- 代币：一键发行固定总量或带上限的管理型 ERC-20，支持导入、查看余额和转账。
+- Solidity 工作台：编辑、编译、估算 Gas 并部署 Solidity；支持导入 ABI，对已保存合约执行只读或签名写入调用。
 - 钱包保护：签名类操作需要解锁，空闲约 5 分钟自动上锁。
 - 备份与恢复：导出带独立密码的可携带 JSON 备份；导入时直接选择备份文件，明确区分当前钱包口令与备份密码。
 - 六种界面语言：简体中文、English、日本語、한국어、Español、Русский。
@@ -49,14 +50,14 @@
 
 ### macOS（Apple Silicon）
 
-1. 从 Releases 下载 `NIU-Wallet-v0.3.8-macOS-arm64.dmg`，并用同一页面的 `.sha256` 文件核对 SHA-256。
+1. 从 Releases 下载 `NIU-Wallet-v0.3.9-macOS-arm64.dmg`，并用同一页面的 `.sha256` 文件核对 SHA-256。
 2. 打开 DMG，把“NIU Wallet”拖入“应用程序”。
 3. 当前版本未做 Apple 公证。首次启动如果被 macOS 拦截，请在 Finder 中右键应用并选择“打开”。
 4. 升级应用不会删除 `~/Library/Application Support/NIU Wallet/` 中的钱包和链数据，但升级前仍应先导出可携带备份。
 
 ### Windows x64
 
-1. 从 Releases 下载 `NIU-Wallet-v0.3.8-Windows-x64.zip` 并完整解压，不要只复制单个 EXE。
+1. 从 Releases 下载 `NIU-Wallet-v0.3.9-Windows-x64.zip` 并完整解压，不要只复制单个 EXE。
 2. 双击文件夹中的 `NIU Wallet.exe`。
 3. 当前版本未做商业代码签名；Windows SmartScreen 可能显示“未知发布者”。
 
@@ -70,13 +71,13 @@
 
 节点基于 Core-Geth v1.12.23，起始提交 `96b2afc25c7023bb500d14e8ed69455339b1ca90`，保留上游版权和许可证。macOS 与 Windows 桌面端均使用 Electron，并复用同一套受本机回环地址保护的后端接口。
 
-v0.3.8 已通过钱包回归测试与六语言静态覆盖检查；发布流程会分别构建 macOS arm64 DMG 和 Windows x64 ZIP，并生成 SHA-256 校验文件。当前 macOS 包为临时签名（ad-hoc），Windows 包未做商业代码签名。
+v0.3.9 已通过 22 项钱包回归测试、六语言静态覆盖检查，以及真实双节点链上的 ERC-20 发行/转账和 Solidity 合约部署/读写验证。发布流程会分别构建 macOS arm64 DMG 和 Windows x64 ZIP，并生成 SHA-256 校验文件。当前 macOS 包为临时签名（ad-hoc），Windows 包未做商业代码签名。
 
 安全状态、依赖扫描结论和仍未完成的验证见 [SECURITY.md](SECURITY.md)。
 
-## 最新界面（v0.3.8）
+## 最新界面（v0.3.9）
 
-以下截图由 v0.3.8 使用公开演示数据生成，不包含真实用户地址、余额或备份资料。
+以下截图由 v0.3.9 使用公开演示数据生成，不包含真实用户地址、余额或备份资料。
 
 **概览**：NIU 总余额、当前地址、区块、连接状态和最近交易。
 
@@ -97,6 +98,14 @@ v0.3.8 已通过钱包回归测试与六语言静态覆盖检查；发布流程�
 **设置、备份与导入**：导出可携带备份，或直接选择备份文件导入。
 
 ![设置与备份](docs/images/wallet-language-settings.png)
+
+**一键发行 ERC-20**：选择固定总量或管理型模板，预览 Gas 后再确认部署。
+
+![一键发行 ERC-20](docs/images/contract-studio-token-v0.3.9.png)
+
+**Solidity 编辑器**：编译 London EVM 合约、查看 ABI、估算 Gas 并部署；编译成功不代表合约已经过安全审计。
+
+![Solidity 编辑器](docs/images/solidity-editor-v0.3.9.png)
 
 ## 风险提示
 

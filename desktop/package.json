@@ -1,7 +1,7 @@
 {
   "name": "niu-wallet-desktop",
   "productName": "NIU Wallet",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "description": "牛币钱包桌面外壳（macOS / Windows），业务逻辑复用 scripts/server.mjs",
   "main": "main.cjs",

@@ -17,7 +17,7 @@ const staticFiles=new Map([
 const localeFiles=new Set(['zh-CN','en','ja','ko','es','ru']);
 let stopping=false,initializing=true,startupError=null;
 function json(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
-async function body(req){req.setEncoding('utf8');let data='';for await(const chunk of req){data+=chunk;if(Buffer.byteLength(data)>150000)throw Error('请求内容过长');}try{return JSON.parse(data||'{}');}catch{throw Error('请求格式无效');}}
+async function body(req){req.setEncoding('utf8');let data='';for await(const chunk of req){data+=chunk;if(Buffer.byteLength(data)>300000)throw Error('请求内容过长');}try{return JSON.parse(data||'{}');}catch{throw Error('请求格式无效');}}
 function authorized(req){
   const provided=Buffer.from(req.headers['x-niu-token']||'');const expected=Buffer.from(token);
   return req.headers.origin===origin&&provided.length===expected.length&&timingSafeEqual(provided,expected);
@@ -81,6 +81,18 @@ const server=http.createServer(async(req,res)=>{
       if(url.pathname==='/api/contact')return json(res,200,await lab.saveContact(data.address,data.label));
       if(url.pathname==='/api/deploy')return json(res,200,await lab.deploy(data.message));
       if(url.pathname==='/api/message')return json(res,200,await lab.update(data.message));
+      if(url.pathname==='/api/solidity/compile')return json(res,200,lab.compileSolidity(data.source,data.fileName));
+      if(url.pathname==='/api/solidity/estimate')return json(res,200,await lab.deploymentEstimate(data.buildId,data.contractName,data.args,data.from,data.value));
+      if(url.pathname==='/api/solidity/deploy')return json(res,200,await lab.deployCompiled(data.buildId,data.contractName,data.args,data.from,data.value,data.label));
+      if(url.pathname==='/api/contract/import')return json(res,200,await lab.importContract(data.address,data.name,data.abi));
+      if(url.pathname==='/api/contract/info')return json(res,200,lab.contractInfo(data.id));
+      if(url.pathname==='/api/contract/read')return json(res,200,await lab.readContract(data.id,data.signature,data.args));
+      if(url.pathname==='/api/contract/write')return json(res,200,await lab.writeContract(data.id,data.signature,data.args,data.from,data.value));
+      if(url.pathname==='/api/token/prepare')return json(res,200,await lab.prepareToken(data.options,data.from));
+      if(url.pathname==='/api/token/issue')return json(res,200,await lab.issueToken(data.draftId));
+      if(url.pathname==='/api/token/import')return json(res,200,await lab.importToken(data.address));
+      if(url.pathname==='/api/token/portfolio')return json(res,200,await lab.tokenPortfolio());
+      if(url.pathname==='/api/token/transfer')return json(res,200,await lab.transferToken(data.address,data.from,data.to,data.amount));
       if(url.pathname==='/api/backup-portable')return json(res,200,await lab.portableBackup(data.password));
       if(url.pathname==='/api/import-wallet')return json(res,200,await lab.importWalletFile(data.path,data.password??null));
       if(url.pathname==='/api/import-wallet-data')return json(res,200,await lab.importWalletText(data.content,data.password??null));
