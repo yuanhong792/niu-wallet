@@ -5,9 +5,8 @@ import {existsSync,mkdirSync,writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {NiuLab,ROOT,waitFor} from './lab.mjs';
 
-const NODE_BIN=existsSync(resolve(ROOT,'bin/niu-geth-candidate.exe'))
-  ?resolve(ROOT,'bin/niu-geth-candidate.exe')
-  :resolve(ROOT,'bin/niu-geth-candidate');
+const platformNode=resolve(ROOT,'bin','niu-geth-candidate'+(process.platform==='win32'?'.exe':''));
+const NODE_BIN=existsSync(platformNode)?platformNode:resolve(ROOT,'bin/niu-geth-candidate');
 const run=process.env.NIU_CONTRACT_QA_DIR
   ?resolve(process.env.NIU_CONTRACT_QA_DIR)
   :resolve(ROOT,'runtime','contract-qa-'+Date.now());

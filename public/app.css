@@ -247,7 +247,7 @@ body{
 
 .tx-right{text-align:right;flex:0 0 auto}
 
-.tx-amount{font-family:var(--mono);font-size:12px;font-weight:500}
+.tx-amount{font-family:var(--mono);font-size:12px;font-weight:500;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .tx-amount.in{color:var(--accent)}
 

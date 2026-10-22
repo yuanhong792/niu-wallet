@@ -4,7 +4,15 @@
 
 牛币钱包是牛链（NIU）桌面钱包。当前提供 Windows x64 与 macOS Apple Silicon（arm64）版本；两端均接入同一条 NIU 网络。
 
-> **当前版本：** macOS 与 Windows 均为 `v0.3.9`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
+> **当前版本：** macOS 与 Windows 均为 `v0.3.10`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
+
+### v0.3.10 更新
+
+- 交易列表会自动识别 ERC-20 `transfer` 和 `transferFrom`，显示真实代币数量与符号，不再把 `0 NIU` 误解为没有转账。
+- 交易详情优先使用已确认的链上 `Transfer` 事件，并显示代币合约、名称、精度、收发地址、最小单位数量和解析依据；原生 NIU 金额与 Gas 手续费仍单独保留。
+- 支持根据代币合约自动读取元数据并缓存；无法验证元数据时明确标记，不把未知合约伪装成已验证代币。
+- 账本扫描可识别 calldata 中的代币收款地址，已有合约交易也会自动补充代币明细。
+- macOS 与 Windows 共用同一实现与六语言文案，本版本通过 25 项自动化回归测试。
 
 [白皮书 V3.0](docs/牛链NIU白皮书V3.0.md) · [V3.0 Word](docs/牛链NIU白皮书V3.0.docx) · [技术白皮书 V2.0](docs/牛链NIU白皮书V2.0.md) · [安全状态](SECURITY.md)
 
@@ -25,7 +33,7 @@
 - 概览：NIU 总余额、区块高度、节点连接、最近区块与最近交易。
 - 发送：选择自己的付款地址，填写收款地址和金额，签名后广播交易。
 - 接收：选择或新增收款地址，复制地址，并显示该地址的二维码。
-- 交易记录：点击任意交易可展开完整链上明细，包括交易哈希、转出方、收款方、时间、金额、手续费、区块哈希、确认数、Nonce、Gas、交易类型、Chain ID 与输入数据。
+- 交易记录：点击任意交易可展开完整链上明细；ERC-20 `transfer` / `transferFrom` 会自动解析代币符号、精度、数量和收发地址，并用链上 `Transfer` 事件核对结果，同时保留原生 NIU 金额、手续费与原始输入数据。
 - 挖矿：在钱包中主动开启或停止 PoW 挖矿。
 - 代币：一键发行固定总量或带上限的管理型 ERC-20，支持导入、查看余额和转账。
 - Solidity 工作台：编辑、编译、估算 Gas 并部署 Solidity；支持导入 ABI，对已保存合约执行只读或签名写入调用。
@@ -50,14 +58,14 @@
 
 ### macOS（Apple Silicon）
 
-1. 从 Releases 下载 `NIU-Wallet-v0.3.9-macOS-arm64.dmg`，并用同一页面的 `.sha256` 文件核对 SHA-256。
+1. 从 Releases 下载 `NIU-Wallet-v0.3.10-macOS-arm64.dmg`，并用同一页面的 `.sha256` 文件核对 SHA-256。
 2. 打开 DMG，把“NIU Wallet”拖入“应用程序”。
 3. 当前版本未做 Apple 公证。首次启动如果被 macOS 拦截，请在 Finder 中右键应用并选择“打开”。
 4. 升级应用不会删除 `~/Library/Application Support/NIU Wallet/` 中的钱包和链数据，但升级前仍应先导出可携带备份。
 
 ### Windows x64
 
-1. 从 Releases 下载 `NIU-Wallet-v0.3.9-Windows-x64.zip` 并完整解压，不要只复制单个 EXE。
+1. 从 Releases 下载 `NIU-Wallet-v0.3.10-Windows-x64.zip` 并完整解压，不要只复制单个 EXE。
 2. 双击文件夹中的 `NIU Wallet.exe`。
 3. 当前版本未做商业代码签名；Windows SmartScreen 可能显示“未知发布者”。
 
@@ -71,13 +79,13 @@
 
 节点基于 Core-Geth v1.12.23，起始提交 `96b2afc25c7023bb500d14e8ed69455339b1ca90`，保留上游版权和许可证。macOS 与 Windows 桌面端均使用 Electron，并复用同一套受本机回环地址保护的后端接口。
 
-v0.3.9 已通过 22 项钱包回归测试、六语言静态覆盖检查，以及真实双节点链上的 ERC-20 发行/转账和 Solidity 合约部署/读写验证。发布流程会分别构建 macOS arm64 DMG 和 Windows x64 ZIP，并生成 SHA-256 校验文件。当前 macOS 包为临时签名（ad-hoc），Windows 包未做商业代码签名。
+v0.3.10 已通过 25 项钱包回归测试、六语言静态覆盖检查；其中新增测试覆盖 ERC-20 `transfer`、`transferFrom`、链上 `Transfer` 事件解析和 calldata 收款识别。既有的真实双节点链 ERC-20 发行/转账与 Solidity 合约部署/读写验证继续保留。发布流程会分别构建 macOS arm64 DMG 和 Windows x64 ZIP，并生成 SHA-256 校验文件。当前 macOS 包为临时签名（ad-hoc），Windows 包未做商业代码签名。
 
 安全状态、依赖扫描结论和仍未完成的验证见 [SECURITY.md](SECURITY.md)。
 
-## 最新界面（v0.3.9）
+## 最新界面（v0.3.10）
 
-以下截图由 v0.3.9 使用公开演示数据生成，不包含真实用户地址、余额或备份资料。
+以下截图使用公开演示数据生成，不包含真实用户地址、余额或备份资料。v0.3.10 保留 v0.3.9 的合约工作台布局，并增强交易记录中的 ERC-20 数量显示。
 
 **概览**：NIU 总余额、当前地址、区块、连接状态和最近交易。
 

@@ -126,6 +126,24 @@
     return frac ? parts[0] + '.' + frac : parts[0];
   }
 
+  function fmtTokenAmount(value) {
+    if (value === undefined || value === null || value === '') return '0';
+    var parts = String(value).split('.');
+    var integer = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    var fraction = parts.length > 1 ? parts[1].replace(/0+$/, '') : '';
+    return fraction ? integer + '.' + fraction : integer;
+  }
+
+  function primaryTokenTransfer(item) {
+    var transfers = (item && item.tokenTransfers) || [];
+    if (!transfers.length) return null;
+    var wallets = ((state && state.wallets) || []).map(function (wallet) { return wallet.address.toLowerCase(); });
+    var field = item.dir === 'in' ? 'to' : 'from';
+    return transfers.filter(function (transfer) {
+      return transfer[field] && wallets.indexOf(transfer[field].toLowerCase()) >= 0;
+    })[0] || transfers[0];
+  }
+
   function when(iso) {
     if (!iso) return '';
     var d = new Date(iso);
@@ -289,7 +307,9 @@
       });
     }
     demoTxs = [
-      { hash: '0xe71c4a90b2d5f8136c7d2e0a9b4f5c1d8e3a6b0c9d2f4e7a1b3c5d8e0f2a4b6c', dir: 'in', kind: '收款', from: demoAddr(9), to: demoAddr(0), amount: '1000.0', block: demoHeight - 2, status: 'confirmed', confirmations: 3, at: new Date(Date.now() - 130000).toISOString(), call: false },
+      { hash: '0xe71c4a90b2d5f8136c7d2e0a9b4f5c1d8e3a6b0c9d2f4e7a1b3c5d8e0f2a4b6c', dir: 'out', kind: '发送代币 AGSP', from: demoAddr(0), to: demoAddr(5), counterparty: demoAddr(9), amount: '0.0', block: demoHeight - 2, status: 'confirmed', confirmations: 3, at: new Date(Date.now() - 130000).toISOString(), call: true,
+        input: '0xa9059cbb000000000000000000000000' + demoAddr(9).slice(2) + '000000000000000000000000000000000000000000000000000000003b9aca00',
+        tokenTransfers: [{ contract: demoAddr(5), from: demoAddr(0), to: demoAddr(9), rawAmount: '1000000000', amount: '1000.0', method: 'transfer', source: 'event', name: 'AGSP Token', symbol: 'AGSP', decimals: 6, recognized: true }] },
       { hash: '0x3f8d2c7a1b9e5f046c8d3a2b7e1f9c4d0a6b8e2f5c7d1a3b9e0f4c6d2a8b1e5f', dir: 'out', kind: '转出', from: demoAddr(0), to: demoAddr(1), amount: '250.0', block: demoHeight - 7, status: 'confirmed', confirmations: 8, at: new Date(Date.now() - 480000).toISOString(), call: false },
       { hash: '0x9a2e6f1c8d4b7a0e3f5c2d9b6a8e1f4c7d0b3a5e8f2c6d1b4a9e7f0c3d5b8a2e', dir: 'out', kind: '转出', from: demoAddr(0), to: demoAddr(9), amount: '40.5', block: demoHeight - 14, status: 'confirmed', confirmations: 15, at: new Date(Date.now() - 900000).toISOString(), call: true },
       { hash: '0x5c1d8b3f7a2e9c4d6b0f8a1e5c3d7b9a2f4e6c8d0b1a3e5f7c9d2b4a6e8f0c1d', dir: 'in', kind: '收款', from: demoAddr(1), to: demoAddr(0), amount: '120.0', block: demoHeight - 21, status: 'confirmed', confirmations: 22, at: new Date(Date.now() - 1400000).toISOString(), call: false }
@@ -345,8 +365,9 @@
             timestamp: found.at, from: found.from, to: found.to, amount: found.amount,
             nonce: 12, type: 0, chainId: 26261017, gasLimit: '21000', gasUsed: '21000',
             gasPriceWei: '2000000000', gasPriceGwei: '2.0', fee: '0.000042',
-            input: found.call ? '0x6d657373616765' : '0x', inputBytes: found.call ? 7 : 0,
-            contractAddress: null, logsCount: 0
+            input: found.input || (found.call ? '0x6d657373616765' : '0x'), inputBytes: found.input ? (found.input.length - 2) / 2 : (found.call ? 7 : 0),
+            contractAddress: null, logsCount: found.tokenTransfers ? found.tokenTransfers.length : 0,
+            assetType: found.tokenTransfers ? 'erc20' : 'native', tokenTransfers: found.tokenTransfers || []
           });
         }
         if (path === '/api/mine') { demoMining = !!payload.enabled; return resolve({ mining: demoMining, until: null }); }
@@ -528,9 +549,20 @@
     addTxDetail(grid, '状态', transactionStatus(d.status, d.confirmations), false, false);
     addTxDetail(grid, '交易时间', exactWhen(d.timestamp), false, false);
     addTxDetail(grid, '转出方', d.from, true, true);
-    addTxDetail(grid, '收款方', d.to || (d.contractAddress ? '创建合约' : '—'), !!d.to, true);
-    addTxDetail(grid, '金额', fmtNiu(d.amount, 8) + ' NIU', false, false);
+    addTxDetail(grid, d.tokenTransfers && d.tokenTransfers.length ? '调用合约' : '收款方', d.to || (d.contractAddress ? '创建合约' : '—'), !!d.to, true);
+    addTxDetail(grid, d.tokenTransfers && d.tokenTransfers.length ? '原生币金额' : '金额', fmtNiu(d.amount, 8) + ' NIU', false, false);
     addTxDetail(grid, '手续费', d.fee == null ? '等待确认' : fmtNiu(d.fee, 8) + ' NIU', false, false);
+    (d.tokenTransfers || []).forEach(function (transfer, index) {
+      var suffix = d.tokenTransfers.length > 1 ? ' ' + (index + 1) : '';
+      addTxDetail(grid, tr('代币数量') + suffix, fmtTokenAmount(transfer.amount) + ' ' + (transfer.symbol || 'ERC-20'), false, false);
+      addTxDetail(grid, tr('调用方法') + suffix, transfer.method || 'Transfer', false, false);
+      addTxDetail(grid, tr('代币名称') + suffix, (transfer.name ? transfer.name + ' (' + transfer.symbol + ')' : transfer.symbol) + (transfer.recognized ? '' : ' · ' + tr('未验证元数据')), false, false);
+      addTxDetail(grid, tr('解析依据') + suffix, transfer.source === 'event' ? '链上 Transfer 事件' : '交易输入（等待链上事件确认）', false, false);
+      addTxDetail(grid, tr('代币合约') + suffix, transfer.contract, true, true);
+      addTxDetail(grid, tr('代币转出方') + suffix, transfer.from, true, true);
+      addTxDetail(grid, tr('代币收款方') + suffix, transfer.to, true, true);
+      addTxDetail(grid, tr('最小单位数量') + suffix, transfer.rawAmount, true, true);
+    });
     addTxDetail(grid, '区块高度', d.blockNumber == null ? '待打包' : '#' + d.blockNumber, false, false);
     addTxDetail(grid, '区块内序号', d.transactionIndex == null ? '—' : d.transactionIndex, false, false);
     addTxDetail(grid, '区块哈希', d.blockHash, true, true);
@@ -585,7 +617,11 @@
       body.className = 'tx-body';
       var title = document.createElement('div');
       title.className = 'tx-title';
-      text(title, (t.dir === 'in' ? '来自 ' : '发往 ') + short(t.dir === 'in' ? t.from : t.to));
+      var tokenTransfer = primaryTokenTransfer(t);
+      var counterparty = t.counterparty || (t.dir === 'in' ? t.from : t.to);
+      text(title, tokenTransfer
+        ? tr(t.dir === 'in' ? '收到代币' : '发送代币') + ' ' + (tokenTransfer.symbol || 'ERC-20') + ' · ' + short(counterparty)
+        : tr(t.dir === 'in' ? '来自' : '转给') + ' ' + short(counterparty));
       var sub = document.createElement('div');
       sub.className = 'tx-sub';
       text(sub, when(t.at) + ' · 区块 ' + (t.block == null ? '待打包' : '#' + t.block) + ' · ' + shortHash(t.hash));
@@ -596,7 +632,9 @@
       right.className = 'tx-right';
       var amount = document.createElement('div');
       amount.className = 'tx-amount' + (t.dir === 'in' ? ' in' : '');
-      text(amount, (t.dir === 'in' ? '+' : '−') + fmtNiu(t.amount, 4));
+      text(amount, (t.dir === 'in' ? '+' : '−') + (tokenTransfer
+        ? fmtTokenAmount(tokenTransfer.amount) + ' ' + (tokenTransfer.symbol || 'ERC-20')
+        : fmtNiu(t.amount, 4) + ' NIU'));
       var st = document.createElement('div');
       var klass = 'tx-state';
       var label = transactionStatus(t.status, t.confirmations);

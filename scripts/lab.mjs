@@ -16,6 +16,24 @@ export const CHAIN_ID=26261015;
 export const LOCK_IDLE_MS=5*60*1000;   // auto-lock the vault after 5 minutes without a signing action
 export const TRANSACTION_LIMIT=200;    // ledger entries kept in activity.json (incoming + outgoing)
 const UINT256_MAX=(1n<<256n)-1n;
+const ERC20_TRANSFER_INTERFACE=new Interface([
+  'function transfer(address to,uint256 value) returns (bool)',
+  'function transferFrom(address from,address to,uint256 value) returns (bool)',
+  'event Transfer(address indexed from,address indexed to,uint256 value)'
+]);
+const TOKEN_METADATA_TTL_MS=5*60*1000;
+
+export function decodeErc20TransferInput(data,caller,contract){
+  if(typeof data!=='string'||data.length<10||!contract)return null;
+  try{
+    const parsed=ERC20_TRANSFER_INTERFACE.parseTransaction({data});
+    if(!parsed||!['transfer','transferFrom'].includes(parsed.name))return null;
+    const from=parsed.name==='transferFrom'?getAddress(parsed.args[0]):getAddress(caller);
+    const to=getAddress(parsed.name==='transfer'?parsed.args[0]:parsed.args[1]);
+    const rawAmount=String(parsed.name==='transfer'?parsed.args[1]:parsed.args[2]);
+    return {contract:getAddress(contract),from,to,rawAmount,method:parsed.name,source:'input'};
+  }catch{return null;}
+}
 // geth only persists the dirty trie state -- the chain head state -- during an
 // orderly shutdown. Killing the process before that flush completes loses it:
 // the next start logs "Head state missing", falls back to the genesis head and
@@ -230,10 +248,16 @@ export class NiuLab {
     return {mining:enabled,until:this.miningUntil};
   }
   async confirmed(tx,kind){
-    this.meta.transactions.unshift({hash:tx.hash,kind,status:'pending',dir:'out',to:tx.to||'',amount:formatEther(tx.value??0n),at:new Date().toISOString()});
+    const item={hash:tx.hash,kind,status:'pending',dir:'out',from:tx.from||'',to:tx.to||'',amount:formatEther(tx.value??0n),at:new Date().toISOString(),call:!!tx.data&&tx.data!=='0x'};
+    if(item.call)this.attachTokenTransfers(item,await this.erc20Transfers(tx,null));
+    this.meta.transactions.unshift(item);
     this.meta.transactions=this.meta.transactions.slice(0,TRANSACTION_LIMIT);save(this.metaFile,this.meta);
     const r=await waitFor('交易确认（需要开启挖矿）',()=>this.providers[0].getTransactionReceipt(tx.hash),240000);
-    const item=this.meta.transactions.find(x=>x.hash===tx.hash);item.status=r.status===1?'confirmed':'failed';item.block=r.blockNumber;save(this.metaFile,this.meta);
+    item.status=r.status===1?'confirmed':'failed';item.block=r.blockNumber;
+    if(item.call){
+      const transfers=await this.erc20Transfers(tx,r);this.attachTokenTransfers(item,transfers);item.assetChecked=true;
+    }
+    save(this.metaFile,this.meta);
     if(r.status!==1)throw Error('交易执行失败');
     if(this.providers[1])await waitFor('第二节点同步交易',()=>this.providers[1].getTransactionReceipt(tx.hash));
     return r;
@@ -421,6 +445,60 @@ export class NiuLab {
     if(!name||!symbol||!Number.isInteger(decimals)||decimals<0||decimals>36)throw Error('代币元数据无效');
     return {address:normalized,name,symbol,decimals,totalSupply:String(totalSupply)};
   }
+  async displayTokenMetadata(address){
+    const normalized=getAddress(address),key=normalized.toLowerCase(),now=Date.now();
+    this.tokenMetadataCache||=new Map();
+    const cached=this.tokenMetadataCache.get(key);if(cached&&now-cached.at<TOKEN_METADATA_TTL_MS)return cached.value;
+    const saved=(this.meta?.tokens||[]).find(item=>String(item.address).toLowerCase()===key);
+    let value=null;
+    try{
+      const live=await this.tokenMetadata(normalized);
+      value={name:live.name,symbol:live.symbol,decimals:live.decimals,recognized:true};
+    }catch{
+      const decimals=Number(saved?.decimals);
+      if(saved&&saved.symbol&&Number.isInteger(decimals)&&decimals>=0&&decimals<=36)value={name:String(saved.name||'').slice(0,80),symbol:String(saved.symbol).slice(0,20),decimals,recognized:true};
+      else value={name:'',symbol:'ERC-20',decimals:null,recognized:false};
+    }
+    this.tokenMetadataCache.set(key,{at:now,value});return value;
+  }
+  async erc20Transfers(tx,receipt){
+    if(!tx)return [];
+    const input=decodeErc20TransferInput(tx.data||'0x',tx.from,tx.to);
+    const transfers=[];
+    if(receipt?.status!==0)for(const log of (receipt?.logs||[])){
+      try{
+        const parsed=ERC20_TRANSFER_INTERFACE.parseLog({topics:log.topics,data:log.data});
+        if(!parsed||parsed.name!=='Transfer')continue;
+        transfers.push({contract:getAddress(log.address),from:getAddress(parsed.args[0]),to:getAddress(parsed.args[1]),rawAmount:String(parsed.args[2]),method:null,source:'event'});
+      }catch{}
+    }
+    if(!transfers.length&&input)transfers.push(input);
+    else if(input){
+      const matched=transfers.find(item=>item.contract.toLowerCase()===input.contract.toLowerCase()&&item.to.toLowerCase()===input.to.toLowerCase());
+      if(matched)matched.method=input.method;
+    }
+    const metadata=new Map();
+    for(const item of transfers){
+      const key=item.contract.toLowerCase();
+      if(!metadata.has(key))metadata.set(key,await this.displayTokenMetadata(item.contract));
+      const info=metadata.get(key);let amount=item.rawAmount;
+      if(info.decimals!==null)try{amount=formatUnits(item.rawAmount,info.decimals);}catch{}
+      Object.assign(item,info,{amount});
+    }
+    return transfers;
+  }
+  attachTokenTransfers(item,transfers){
+    if(!transfers?.length)return false;
+    item.assetType='erc20';item.tokenTransfers=transfers;
+    const mine=new Set((this.walletAddresses||[]).map(address=>address.toLowerCase()));
+    const incoming=transfers.find(entry=>mine.has(entry.to.toLowerCase()));
+    const outgoing=transfers.find(entry=>mine.has(entry.from.toLowerCase()));
+    const primary=(outgoing&&String(item.from||'').toLowerCase()===outgoing.from.toLowerCase())?outgoing:(incoming||outgoing||transfers[0]);
+    if(incoming&&!outgoing)item.dir='in';else if(outgoing)item.dir='out';
+    item.counterparty=item.dir==='in'?primary.from:primary.to;
+    item.kind=item.dir==='in'?`收到代币 ${primary.symbol}`:`发送代币 ${primary.symbol}`;
+    return true;
+  }
   async importToken(address){return this.exclusive(async()=>{
     this.meta.tokens||=[];
     const info=await this.tokenMetadata(address);let token=this.meta.tokens.find(item=>item.address.toLowerCase()===info.address.toLowerCase());
@@ -542,6 +620,7 @@ export class NiuLab {
     const gasPrice=receipt?.gasPrice??tx?.gasPrice??0n;
     const gasUsed=receipt?.gasUsed??0n;
     const input=tx?.data||'0x';
+    const tokenTransfers=await this.erc20Transfers(tx,receipt);
     return {
       hash:tx?.hash||saved.hash,
       status:receipt?(receipt.status===1?'confirmed':'failed'):(saved.status||'pending'),
@@ -556,7 +635,8 @@ export class NiuLab {
       gasPriceWei:gasPrice?String(gasPrice):null,gasPriceGwei:gasPrice?formatUnits(gasPrice,'gwei'):null,
       fee:receipt&&gasPrice?formatEther(gasUsed*gasPrice):null,
       input,inputBytes:input==='0x'?0:(input.length-2)/2,
-      contractAddress:receipt?.contractAddress||null,logsCount:receipt?.logs?.length??null
+      contractAddress:receipt?.contractAddress||null,logsCount:receipt?.logs?.length??null,
+      assetType:tokenTransfers.length?'erc20':'native',tokenTransfers
     };
   }
   async state(){
@@ -581,12 +661,17 @@ export class NiuLab {
         let b;try{b=await p.getBlock(n,true);}catch{break;}
         for(const t of b.prefetchedTransactions){
           const to=(t.to||'').toLowerCase(),sender=(t.from||'').toLowerCase();
-          const incoming=mine.includes(to),outgoing=mine.includes(sender);
+          const tokenTransfers=await this.erc20Transfers(t,null);
+          const tokenIncoming=tokenTransfers.some(entry=>mine.includes(entry.to.toLowerCase()));
+          const tokenOutgoing=tokenTransfers.some(entry=>mine.includes(entry.from.toLowerCase()));
+          const incoming=mine.includes(to)||tokenIncoming,outgoing=mine.includes(sender)||tokenOutgoing;
           if((!incoming&&!outgoing)||known.has(t.hash))continue;
-          this.meta.transactions.unshift({hash:t.hash,dir:incoming?'in':'out',kind:incoming?'收款':'转出',
+          const item={hash:t.hash,dir:tokenIncoming&&!tokenOutgoing?'in':(incoming&&!outgoing?'in':'out'),kind:incoming?'收款':'转出',
             from:t.from,to:t.to||'',amount:formatEther(t.value??0n),block:n,blockHash:b.hash,
             status:'confirmed',confirmations:Math.max(0,heights[0]-n+1),at:new Date(b.timestamp*1000).toISOString(),
-            call:!!t.data&&t.data!=='0x'});
+            call:!!t.data&&t.data!=='0x'};
+          if(tokenTransfers.length){this.attachTokenTransfers(item,tokenTransfers);item.assetChecked=true;}
+          this.meta.transactions.unshift(item);
           known.add(t.hash);changed=true;
         }
         this.meta.scannedTo=n;
@@ -600,6 +685,10 @@ export class NiuLab {
         const next=r.status===1?'confirmed':'failed',confirmations=Math.max(0,heights[0]-r.blockNumber+1);
         if(item.status!==next||item.blockHash!==r.blockHash||item.confirmations!==confirmations){
           item.status=next;item.block=r.blockNumber;item.blockHash=r.blockHash;item.confirmations=confirmations;changed=true;
+        }
+        if(!item.assetChecked&&(item.call||/代币/.test(item.kind||''))){
+          const tx=await p.getTransaction(item.hash).catch(()=>null),transfers=await this.erc20Transfers(tx,r);
+          this.attachTokenTransfers(item,transfers);item.assetChecked=true;changed=true;
         }
       }else if(item.block!==undefined){
         item.status='reorged';delete item.block;delete item.blockHash;item.confirmations=0;changed=true;
