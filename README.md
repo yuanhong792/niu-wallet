@@ -14,7 +14,7 @@
 - 账本扫描可识别 calldata 中的代币收款地址，已有合约交易也会自动补充代币明细。
 - macOS 与 Windows 共用同一实现与六语言文案，本版本通过 25 项自动化回归测试。
 
-[白皮书 V3.0](docs/牛链NIU白皮书V3.0.md) · [V3.0 Word](docs/牛链NIU白皮书V3.0.docx) · [技术白皮书 V2.0](docs/牛链NIU白皮书V2.0.md) · [安全状态](SECURITY.md)
+[官方网站](https://yuanhong792.github.io/niu-wallet-site/) · [白皮书 V3.0](docs/牛链NIU白皮书V3.0.md) · [V3.0 Word](docs/牛链NIU白皮书V3.0.docx) · [技术白皮书 V2.0](docs/牛链NIU白皮书V2.0.md) · [安全状态](SECURITY.md)
 
 ## 网络参数
 
