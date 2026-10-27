@@ -1,3 +1,5 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto detect text files and perform LF normalization.
+# eol=lf is added so this subtree uses the same checkout policy as the rest of
+# the repository; a deeper .gitattributes overrides the root one by location.
+* text=auto eol=lf
 *.sol linguist-language=Solidity

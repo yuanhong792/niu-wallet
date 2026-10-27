@@ -1,0 +1,13 @@
+# Fuzzer corpora and seeds are opaque inputs: rewriting a CR byte changes the
+# input and silently invalidates crash reproduction. node/.gitattributes sets
+# "* text=auto" higher in the tree, and a deeper .gitattributes wins regardless
+# of pattern specificity, so the exemption has to live here.
+#
+# "-text" only disables line-ending conversion; git still detects real binaries
+# for diff and merge by looking for NUL bytes.
+* -text
+
+# The drivers and this README are ordinary source.
+*.go text eol=lf
+*.md text eol=lf
+.gitattributes text eol=lf

@@ -1,0 +1,38 @@
+# Keep LF in the repository and on checkout. Without this, a Windows working
+# copy with core.autocrlf=true turns a one-line edit into a whole-file CRLF
+# rewrite (this happened to README.md in v0.3.10).
+* text=auto eol=lf
+
+# Fixtures whose exact bytes are load-bearing. Git's NUL-based auto detection
+# is not reliable on small binary fixtures, so these are pinned explicitly.
+*.rlp    binary
+*.dat    binary
+*.bin    binary
+*.blocks binary
+*.snap   binary
+
+# Media, documents, archives and build artifacts.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.icns binary
+*.pdf  binary
+*.docx binary
+*.zip  binary
+*.gz   binary
+*.tgz  binary
+*.bz2  binary
+*.xz   binary
+*.exe  binary
+*.dll  binary
+*.so   binary
+*.dylib binary
+*.class binary
+*.jar  binary
+*.wasm binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
