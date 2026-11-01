@@ -4,14 +4,22 @@ import {resolve} from 'node:path';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {NiuLab,ROOT} from './lab.mjs';
 import {addressQrSvg,validReceiveAddress} from './address-qr.mjs';
+import {PersonalWallet} from './personal-wallet.mjs';
+import QRCode from 'qrcode';
 
 const host='127.0.0.1',port=Number(process.env.NIU_HTTP_PORT||18790),origin=`http://${host}:${port}`;
 if(!Number.isInteger(port)||port<1024||port>65535)throw Error('钱包控制端口无效');
 const token=randomBytes(32).toString('hex');
 const lab=new NiuLab({ports:[19145,19146],p2p:[30871,30872],auth:[19151,19152]});
+const personal=new PersonalWallet(resolve(lab.base,'personal-multichain'));
+// Surfaced in the sidebar so an older build of the wallet is obvious at a glance.
+const buildVersion=(()=>{try{return JSON.parse(readFileSync(resolve(ROOT,'package.json'),'utf8')).version||null;}catch{return null;}})();
 const staticFiles=new Map([
   ['/app.js',['app.js','text/javascript; charset=utf-8']],
   ['/app.css',['app.css','text/css; charset=utf-8']],
+  ['/personal.js',['personal.js','text/javascript; charset=utf-8']],
+  ['/coin-icons.js',['coin-icons.js','text/javascript; charset=utf-8']],
+  ['/personal.css',['personal.css','text/css; charset=utf-8']],
   ['/niu-gold.png',['niu-gold.png','image/png']]
 ]);
 const localeFiles=new Set(['zh-CN','en','ja','ko','es','ru']);
@@ -30,12 +38,14 @@ const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,origin);
   try{
     if(req.method==='GET'&&url.pathname==='/'){
-      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
       return res.end(readFileSync(resolve(ROOT,'public/index.html'),'utf8').replace('__NIU_TOKEN__',token));
     }
     if(req.method==='GET'&&staticFiles.has(url.pathname)){
       const [file,type]=staticFiles.get(url.pathname);
-      res.writeHead(200,{'Content-Type':type});
+      // The bundle is replaced in place on upgrade, so a cached copy would keep showing
+      // the previous version's pages. Never let Chromium reuse them.
+      res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'});
       return res.end(readFileSync(resolve(ROOT,'public',file)));
     }
     if(req.method==='GET'&&url.pathname.startsWith('/locales/')){
@@ -54,8 +64,9 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='GET'&&url.pathname==='/api/state'){
       if(initializing)return json(res,200,{initializing:true});
       if(startupError)return json(res,503,{error:startupError});
-      return json(res,200,await lab.state());
+      return json(res,200,{...await lab.state(),version:buildVersion});
     }
+    if(req.method==='GET'&&url.pathname==='/api/personal/state')return json(res,200,personal.state());
     if(req.method==='GET'&&url.pathname==='/api/transaction'){
       if(initializing||startupError||stopping)return json(res,503,{error:startupError||'节点尚未就绪'});
       return json(res,200,await lab.transactionDetails(url.searchParams.get('hash')||''));
@@ -63,9 +74,19 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='POST'){
       if(!authorized(req))return json(res,403,{error:'请求来源校验失败，请从本机控制台操作'});
       if(req.headers['content-type']?.split(';')[0].trim()!=='application/json')return json(res,415,{error:'仅接受JSON请求'});
+      if(url.pathname.startsWith('/api/personal/')){
+        if(stopping)return json(res,503,{error:'钱包正在关闭'});
+        const data=await body(req),action=url.pathname.slice('/api/personal/'.length);
+        if(action==='qr'){
+          const state=personal.state(),addresses=Object.values(state.addresses||{});
+          if(!addresses.includes(data.address))throw Error('仅为本机个人钱包地址生成二维码');
+          return json(res,200,{svg:await QRCode.toString(data.address,{type:'svg',errorCorrectionLevel:'M',margin:2})});
+        }
+        return json(res,200,await personal.action(action,data));
+      }
       if(url.pathname==='/api/shutdown'){
         if(initializing)return json(res,409,{error:'节点正在启动，请就绪后再关闭'});
-        if(lab.busy)return json(res,409,{error:'交易仍在处理中，请等待确认后再关闭'});
+        if(lab.busy||personal.busy)return json(res,409,{error:'交易仍在处理中，请等待确认后再关闭'});
         json(res,200,{message:'正在关闭节点，稍后页面将无法连接。'});setTimeout(shutdown,100);return;
       }
       if(initializing||startupError||stopping)return json(res,503,{error:'节点尚未就绪'});
@@ -103,13 +124,15 @@ const server=http.createServer(async(req,res)=>{
 server.requestTimeout=15000;server.headersTimeout=10000;server.maxConnections=32;server.maxRequestsPerSocket=100;
 async function shutdown(){
   if(stopping)return;stopping=true;
+  while(personal.busy)await new Promise(r=>setTimeout(r,100));
+  personal.lock();
   await lab.close();server.close(()=>process.exit(lab.graceful?0:1));
   server.closeAllConnections();
 }
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'控制台已启动或端口被占用，请打开现有页面。':e.message);process.exitCode=1;});
 server.listen(port,host,async()=>{
   console.log(`牛链中文控制台：${origin}`);
-  try{await lab.start();initializing=false;console.log('牛链节点已就绪；挖矿默认关闭。');}
+  try{if(process.env.NIU_PERSONAL_ONLY!=='1')await lab.start();initializing=false;console.log('钱包已就绪；挖矿默认关闭。');}
   catch(e){initializing=false;startupError=e.message;console.error(e.message);}
 });
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);

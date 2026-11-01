@@ -1,6 +1,6 @@
 {
   "name": "niu-wallet-local-alpha",
-  "version": "0.3.10",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,13 +9,19 @@
     "test:contracts": "node scripts/contract-integration.mjs",
     "desktop": "pnpm --dir desktop start",
     "dist:mac": "pnpm --dir desktop dist:mac",
-    "dist:win": "pnpm --dir desktop dist:win"
+    "dist:win": "pnpm --dir desktop dist:win",
+    "verify:package": "node tools/verify-personal-package.mjs",
+    "smoke:package": "node tools/smoke-personal-package.mjs",
+    "qa:personal": "node tools/qa-personal.mjs"
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.6.1",
+    "bitcoinjs-lib": "7.0.5",
+    "ecpair": "3.0.2",
     "ethers": "6.17.0",
     "qrcode": "1.5.4",
-    "solc": "0.8.37"
+    "solc": "0.8.37",
+    "tiny-secp256k1": "2.2.5"
   },
   "overrides": {
     "tmp": "0.2.7"

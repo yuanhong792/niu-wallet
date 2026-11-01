@@ -1,0 +1,216 @@
+{
+  "status": "failed",
+  "generatedAt": "2026-11-01T05:55:39.312Z",
+  "package": "D:/NIU-Wallet-v0.4.0-Windows-x64",
+  "summary": {
+    "unitTests": "passed",
+    "packageIntegrity": "passed",
+    "packageSmoke": "passed",
+    "liveNetworks": "failed",
+    "browserUi": "passed",
+    "independentRecovery": "passed"
+  },
+  "detail": {
+    "unitTests": {
+      "status": "passed",
+      "tests": 34,
+      "pass": 34,
+      "fail": 0,
+      "ms": 25418
+    },
+    "packageIntegrity": {
+      "status": "passed",
+      "checkedAt": "2026-11-01T05:55:13.617Z",
+      "filesCompared": 3087,
+      "folders": [
+        {
+          "folder": "scripts",
+          "compared": 29
+        },
+        {
+          "folder": "public",
+          "compared": 8
+        },
+        {
+          "folder": "contracts",
+          "compared": 3
+        },
+        {
+          "folder": "network",
+          "compared": 5
+        },
+        {
+          "folder": "assets",
+          "compared": 14
+        },
+        {
+          "folder": "node_modules",
+          "compared": 3027
+        },
+        {
+          "folder": "bin",
+          "compared": 1
+        }
+      ],
+      "failures": [],
+      "ms": 1438
+    },
+    "packageSmoke": {
+      "status": "passed",
+      "package": "D:/NIU-Wallet-v0.4.0-Windows-x64/resources/app-resources",
+      "checks": [
+        "backendBootsFromPackage",
+        "personalPagePresent",
+        "sessionTokenIssued",
+        "personalStylesheetServed",
+        "stylesheetFollowsAppTheme",
+        "personalScriptServed",
+        "classicScriptNotModule",
+        "coinIconsServed",
+        "coinIconsCoverFiveCoins",
+        "coinIconsAreVectorPaths",
+        "pageLoadsCoinIconsBeforeScript",
+        "pageIsNotCached",
+        "scriptsAreNotCached",
+        "crossSiteRejected",
+        "missingTokenRejected",
+        "shortPasswordRejected",
+        "vaultCreated",
+        "btcAddressIsSegwit",
+        "evmAddressPresent",
+        "startsUnlocked",
+        "qrRendered",
+        "backupFormatTagged",
+        "locksAfterLock",
+        "wrongPasswordRefused",
+        "unlockRestoresAddresses",
+        "duplicateCreateRefused",
+        "gracefulShutdown"
+      ],
+      "count": 27,
+      "ms": 1758
+    },
+    "liveNetworks": {
+      "status": "failed",
+      "error": "Command failed: C:\\Users\\Administrator\\.workbuddy-ai\\binaries\\node\\versions\\22.22.2-6\\node.exe tools/verify-personal-networks.mjs\n",
+      "stdout": "{\n  \"status\": \"partial\",\n  \"checkedAt\": \"2026-11-01T05:55:24.210Z\",\n  \"results\": [\n    {\n      \"network\": \"ethereum\",\n      \"status\": \"ok\",\n      \"address\": \"0x097E070901EF02d8D0B1048b0f02C5De4b591e76\",\n      \"balances\": {\n        \"ETH\": \"0.0\",\n        \"USDT\": \"0.0\",\n        \"USDC\": \"0.0\"\n      },\n      \"attempts\": 1,\n      \"ms\": 1078\n    },\n    {\n      \"network\": \"sepolia\",\n      \"status\": \"ok\",\n      \"address\": \"0x097E070901EF02d8D0B1048b0f02C5De4b591e76\",\n      \"balances\": {\n        \"ETH\": \"0.0\",\n        \"USDC\": \"0.0\"\n      },\n      \"attempts\": 1,\n      \"ms\": 771\n    },\n    {\n      \"network\": \"bitcoin\",\n      \"status\": \"ok\",\n      \"address\": \"bc1qt372fz93ufaywjxz6v68ymefd7tvlqs7ax8vzq\",\n      \"balances\": {\n        \"BTC\": \"0.0\"\n      },\n      \"attempts\": 1,\n      \"ms\": 935\n    },\n    {\n      \"network\": \"bitcoinTest\",\n      \"status\": \"ok\",\n      \"address\": \"tb1qt372fz93ufaywjxz6v68ymefd7tvlqs7hqulen\",\n      \"balances\": {\n        \"BTC\": \"0.0\"\n      },\n      \"attempts\": 1,\n      \"ms\": 1044\n    },\n    {\n      \"network\": \"dogecoin\",\n      \"status\": \"failed\",\n      \"address\": \"DDa82EY8rS3hsJFR1XKMW6Vb8hYmsYhJ7F\",\n      \"error\": \"Bitcoin 数据服务请求失败（429）\",\n      \"attempts\": 3,\n      \"ms\": 4060\n    }\n  ]\n}\n",
+      "ms": 8838
+    },
+    "browserUi": {
+      "status": "passed",
+      "checks": [
+        "fullAppBoots",
+        "legacyOverviewStillRenders",
+        "sidebarShowsBuildVersion",
+        "personalPageOpens",
+        "sidebarEntryLabelled",
+        "twoChainTabs",
+        "mainnetTabLabelled",
+        "testnetTabLabelled",
+        "mainnetSelectedByDefault",
+        "testnetGridHiddenByDefault",
+        "tabCountsShown",
+        "mainnetHasFiveCoins",
+        "testnetHasThreeCoins",
+        "noSharedNetworkSelector",
+        "everyCardHasLogo",
+        "logosAreDistinctColours",
+        "logosHaveShapes",
+        "logosUseDistinctGlyphs",
+        "logosUsePathsNotLetters",
+        "bitcoinLogoIsRealGlyph",
+        "lightThemeBody",
+        "activeTabUsesCardSurface",
+        "cardsUseCardSurface",
+        "allCardsShowAddress",
+        "evmAddressesShared",
+        "evmAddressShape",
+        "btcMainnetShape",
+        "btcTestnetShape",
+        "dogeAddressShape",
+        "dogeDiffersFromBtc",
+        "createHiddenAfterCreate",
+        "testnetTabShowsGrid",
+        "testnetCardsVisible",
+        "mainnetTabRestoresGrid",
+        "qrRendersInsideCard",
+        "qrOnlyInOneCard",
+        "sendFormOpensInCard",
+        "onlyOneSendFormOpen",
+        "dogeFormNotesNoTestnet",
+        "sendFormCloses",
+        "cardRefreshFetchesBalance",
+        "otherCardsStayUnqueried",
+        "refreshAllLeavesNoCardUnqueried",
+        "refreshAllFillsEveryCard",
+        "sendPreviewExplainsItself:bitcoin",
+        "sendPreviewNoRawRpcError:bitcoin",
+        "sendPreviewExplainsItself:dogecoin",
+        "sendPreviewNoRawRpcError:dogecoin",
+        "sendPreviewExplainsItself:ethereum",
+        "sendPreviewNoRawRpcError:ethereum",
+        "lockedBanner",
+        "sendDisabledWhileLocked",
+        "lockClosesOpenForm",
+        "unlockRestoresSameAddress",
+        "legacyPagesStillUsable",
+        "noBrowserErrors"
+      ],
+      "count": 56,
+      "addresses": {
+        "evm": "0x6E6017FF0227E3BA09629a68A515040882B07bCD",
+        "bitcoin": "bc1q2qz5dsaejdjke3mn9e90m59tkx43se4pgvvnyw",
+        "dogecoin": "DCSCvDZ45A2JibRRg6XMawzWwsM7qP8wRk",
+        "bitcoinTest": "tb1q2qz5dsaejdjke3mn9e90m59tkx43se4pz2hqla"
+      },
+      "layout": {
+        "mainnet": [
+          "ETH",
+          "USDT",
+          "USDC",
+          "BTC",
+          "DOGE"
+        ],
+        "testnet": [
+          "ETH",
+          "USDC",
+          "BTC"
+        ]
+      },
+      "screenshots": [
+        "D:\\niu-personal-wallet\\docs\\images\\v040-personal-unlocked.png",
+        "D:\\niu-personal-wallet\\docs\\images\\v040-personal-testnet.png"
+      ],
+      "ms": 11592
+    },
+    "independentRecovery": {
+      "derived": {
+        "evm": "0x306478b29835985c292388e827450f273bfddc6b",
+        "btc": "bc1q84pzg03ujkc8u6ws5kd3hrcl0ylhcvjfxatzu4",
+        "btcTest": "tb1q84pzg03ujkc8u6ws5kd3hrcl0ylhcvjfvms38x",
+        "doge": "DAizzZGuQp4E3paTppykemmTu7uZn4Nh1D"
+      },
+      "wallet": {
+        "evm": "0x306478B29835985C292388E827450f273bFDdc6b",
+        "btc": "bc1q84pzg03ujkc8u6ws5kd3hrcl0ylhcvjfxatzu4",
+        "btcTest": "tb1q84pzg03ujkc8u6ws5kd3hrcl0ylhcvjfvms38x",
+        "doge": "DAizzZGuQp4E3paTppykemmTu7uZn4Nh1D"
+      },
+      "match": {
+        "evm": true,
+        "btc": true,
+        "btcTest": true,
+        "doge": true
+      },
+      "wrongPasswordRejected": true,
+      "status": "passed",
+      "ms": 2182
+    }
+  },
+  "notVerified": [
+    "Electron 窗口本身：本会话内启动 NIU Wallet.exe 后进程立即消失，旧版 v0.3.10 同样如此（对照组），判断为本机无交互桌面会话的限制，而非打包缺陷；需人工双击确认窗口。",
+    "真实资金：未执行任何主网转账。",
+    "有测试币的真实测试网收发：未领取测试币，未做真实广播。",
+    "第三方安全审计：未进行。"
+  ]
+}

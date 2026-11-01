@@ -19,7 +19,7 @@ const path = require('path');
 const net = require('net');
 const fs = require('fs');
 
-const PORT = 18790;
+const PORT = Number(process.env.NIU_HTTP_PORT || 18790);
 const HOST = '127.0.0.1';
 const URL_BASE = `http://${HOST}:${PORT}`;
 const RESTORE_TEST = app.isPackaged && path.basename(process.execPath).includes('Restore Test');
@@ -76,6 +76,11 @@ async function waitForServer(limitMs) {
 // 开发模式沿用 ROOT/runtime。打包后直接通过 NIU_DATA_DIR 把钱包和
 // 链数据写入 Application Support，避免修改应用包或在升级时丢数据。
 function prepareUserData() {
+  if (process.env.NIU_PERSONAL_QA_DIR) {
+    const isolated = path.resolve(process.env.NIU_PERSONAL_QA_DIR);
+    fs.mkdirSync(isolated, { recursive: true });
+    return isolated;
+  }
   const chainRoot = app.isPackaged
     ? path.join(app.getPath('userData'), 'chain')
     : path.join(APP_ROOT, 'runtime');
@@ -199,7 +204,7 @@ function createWindow(loadNow = true) {
     }
   });
 
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { if (!process.env.NIU_PERSONAL_QA_DIR) win.show(); });
 
   // 页面里的外链一律交给系统浏览器，不在钱包窗口里打开
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -264,6 +269,15 @@ function buildMenu() {
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
+  // Quitting silently here is what makes a new build look "empty": the window that stays
+  // on screen belongs to the copy that already owns the lock, which may be an older version.
+  dialog.showErrorBox(
+    '牛币钱包已经在运行',
+    '已经有一个牛币钱包在运行，本次启动已自动退出。\n\n'
+    + '如果你刚打开的是新版，屏幕上那个窗口很可能是旧版（旧版没有「个人多链」）。\n\n'
+    + '请先完全退出旧版：在任务管理器里结束所有 "NIU Wallet.exe"，'
+    + '再重新打开新版。左下角会显示版本号，可用于确认。'
+  );
   app.quit();
 } else {
   app.on('second-instance', () => {
@@ -283,6 +297,16 @@ if (!gotLock) {
       await loadStartupError('检测到普通牛币钱包仍在运行。请先正常退出普通钱包，再打开恢复测试版，确保使用独立测试数据。');
       return;
     } else if (alreadyRunning) {
+      try {
+        const response = await fetch(`${URL_BASE}/api/personal/state`, { signal: AbortSignal.timeout(3000) });
+        if (!response.ok) throw new Error('incompatible backend');
+        const state = await response.json();
+        if (!Array.isArray(state.networks)) throw new Error('incompatible backend');
+      } catch (_) {
+        win = createWindow(false);
+        await loadStartupError('旧版钱包或其他程序正在使用控制端口。请正常退出旧版钱包后，再打开 v0.4.0。');
+        return;
+      }
       // 后端已在运行（例如上一次未完全退出），直接连现有实例，不再起第二个
       console.log('[niu] 检测到已运行的本机节点，直接连接');
       backendOwned = false;
@@ -297,6 +321,11 @@ if (!gotLock) {
     const ready = await waitForServer(180000);
     if (ready) await win.loadURL(APP_URL);
     else await loadStartupError('节点启动超时。');
+
+    // Isolated lifecycle smoke test only; normal launches never auto-exit.
+    if (process.env.NIU_PERSONAL_QA_DIR && process.env.NIU_QA_EXIT_MS) {
+      setTimeout(() => app.quit(), Math.max(5000, Number(process.env.NIU_QA_EXIT_MS) || 10000));
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

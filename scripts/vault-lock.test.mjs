@@ -78,8 +78,13 @@ test('vault file on disk stays encrypted and readable after relock',async t=>{
   const lab=labAt([19875,19876],[31901,31902],[19881,19882]);
   await lab.start();
   try{
-    const raw=readFileSync(resolve(base,'wallet.dpapi'),'utf8');
-    assert.ok(!raw.includes('0x'),'wallet file is not plaintext hex');
+    const raw=readFileSync(resolve(base,'wallet.dpapi'),'utf8').trim();
+    // The file is base64 of a DPAPI blob, so the plaintext JSON keys never survive.
+    // Checking for the literal "0x" was not enough: base64 output contains that
+    // two-character pair by chance in a fair share of runs, which made this test
+    // flaky. Assert the encoding instead, plus the absence of any raw key hex.
+    assert.match(raw,/^[A-Za-z0-9+/]+={0,2}$/,'wallet file is base64 ciphertext, not plaintext JSON');
+    assert.ok(!/[0-9a-fA-F]{64}/.test(raw),'wallet file contains no raw key hex');
     await lab.unlock('any-password-12-chars');
     lab.lock();
     assert.ok(existsSync(resolve(base,'wallet.dpapi')),'wallet file survives lock');

@@ -426,6 +426,8 @@
     }
     var h = (s.heights && s.heights[0]) || 0;
     text(meta, '高度 ' + h + ' · 节点 ' + (s.peers == null ? 0 : s.peers));
+    // Show the build version so an older copy of the wallet is obvious at a glance.
+    text(el('appVersion'), s.version ? '版本 ' + s.version : '');
     text(el('netName'), s.name || '牛链');
     text(el('statHeight'), h);
     text(el('statChain'), s.chainId == null ? '—' : s.chainId);

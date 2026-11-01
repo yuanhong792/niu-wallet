@@ -4,7 +4,19 @@
 
 牛币钱包是牛链（NIU）桌面钱包。当前提供 Windows x64 与 macOS Apple Silicon（arm64）版本；两端均接入同一条 NIU 网络。
 
-> **当前版本：** macOS 与 Windows 均为 `v0.3.10`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
+> **当前版本：** Windows 为 `v0.4.0`（新增个人多链收发），macOS 为 `v0.3.10`。安装包在 [Releases](https://github.com/yuanhong792/niu-wallet/releases) 下载。项目仍处于早期阶段，未经独立第三方安全审计，也未完成 Apple 公证或商业代码签名，请先阅读 [SECURITY.md](SECURITY.md)。
+
+### v0.4.0 更新：个人多链收发
+
+原 NIU 功能保持不变，侧栏新增「个人多链」：一个币一张卡，主网与测试网用顶部标签切换。
+
+- 支持 Bitcoin 主网与 Testnet（bc1q / tb1q 原生 SegWit）、Ethereum 主网 ETH / USDT / USDC、Sepolia 测试网、Dogecoin 主网（D 开头 P2PKH），共五个网络八张卡。
+- 每张卡自带余额、收款地址、二维码、转出表单和单卡刷新，互不干扰；「刷新全部余额」逐网络独立查询，某个网络失败只影响该卡并显示「查询失败」，不会让其余卡片卡在「未查询」。
+- 个人保险库使用独立口令的 scrypt + AES-256-GCM，与旧 NIU 钱包文件分开，升级不覆盖 `wallet.dpapi`；5 分钟无签名操作自动锁定。
+- 转出走「预览 → 核对网络/地址/金额/最高手续费 → 输入确认词 → 本机签名广播」，预览 90 秒失效；BTC / DOGE 仅花费已确认 UTXO。
+- 2026-11-01 在真实 Sepolia 测试网完成收发：领取 1.173 SepETH，钱包内转出 0.01 ETH，交易 [`0xce2f8865…5926419`](https://sepolia.etherscan.io/tx/0xce2f88654ed418c4bb5a62c1b2099b4b8ad615f2f4479a451d21575ca5926419) 已确认（区块 12039213）。
+
+详见 [个人多链收发版说明](docs/个人多链收发版.md)。
 
 ### v0.3.10 更新
 
@@ -38,6 +50,7 @@
 - 代币：一键发行固定总量或带上限的管理型 ERC-20，支持导入、查看余额和转账。
 - Solidity 工作台：编辑、编译、估算 Gas 并部署 Solidity；支持导入 ABI，对已保存合约执行只读或签名写入调用。
 - 钱包保护：签名类操作需要解锁，空闲约 5 分钟自动上锁。
+- 个人多链（v0.4.0 新增）：独立口令的个人保险库，一个币一张卡，支持 BTC 主网/测试网、ETH、USDT、USDC、Sepolia 测试网与 DOGE 主网，卡片内完成收款地址、二维码、转出与余额刷新；与旧 NIU 钱包的地址和备份完全分开。
 - 备份与恢复：导出带独立密码的可携带 JSON 备份；导入时直接选择备份文件，明确区分当前钱包口令与备份密码。
 - 六种界面语言：简体中文、English、日本語、한국어、Español、Русский。
 - macOS 与 Windows 共用同一套 Electron 界面和钱包业务代码，页面布局、功能入口与语言设置保持一致。
@@ -65,8 +78,8 @@
 
 ### Windows x64
 
-1. 从 Releases 下载 `NIU-Wallet-v0.3.10-Windows-x64.zip` 并完整解压，不要只复制单个 EXE。
-2. 双击文件夹中的 `NIU Wallet.exe`。
+1. 从 Releases 下载 `NIU-Wallet-0.4.0-win-x64.zip` 和同名 `.sha256` 文件，先核对 SHA-256，再完整解压——**不要只复制单个 EXE**。
+2. 双击文件夹中的 `NIU Wallet.exe`。侧栏应出现「个人多链」，左下角显示 `版本 0.4.0`；看不到就是旧版还在运行，请先在任务管理器结束所有 `NIU Wallet.exe`。
 3. 当前版本未做商业代码签名；Windows SmartScreen 可能显示“未知发布者”。
 
 ## 共识实现与边界
@@ -81,11 +94,25 @@
 
 v0.3.10 已通过 25 项钱包回归测试、六语言静态覆盖检查；其中新增测试覆盖 ERC-20 `transfer`、`transferFrom`、链上 `Transfer` 事件解析和 calldata 收款识别。既有的真实双节点链 ERC-20 发行/转账与 Solidity 合约部署/读写验证继续保留。发布流程会分别构建 macOS arm64 DMG 和 Windows x64 ZIP，并生成 SHA-256 校验文件。当前 macOS 包为临时签名（ad-hoc），Windows 包未做商业代码签名。
 
+v0.4.0 的个人多链部分另有一套可复现验收（`npm run qa:personal`，结果写入 `docs/personal-qa.json`）：单元/集成 34 项、包内冒烟 25 项、无头浏览器真实界面 56 项、五个网络只读查询全部连通、用 Python + cryptography/coincurve 独立解密备份重推 4 个地址全部一致、源码与打包目录 3087 个文件逐字节相同。另有一次真实 Sepolia 测试网收发（见上方 v0.4.0 更新）。上述测试不等于第三方安全审计或真实资金验收。
+
 安全状态、依赖扫描结论和仍未完成的验证见 [SECURITY.md](SECURITY.md)。
 
-## 最新界面（v0.3.10）
+## 最新界面（v0.4.0）
 
-以下截图使用公开演示数据生成，不包含真实用户地址、余额或备份资料。v0.3.10 保留 v0.3.9 的合约工作台布局，并增强交易记录中的 ERC-20 数量显示。
+以下截图使用公开演示数据生成，不包含真实用户地址、余额或备份资料。
+
+**个人多链 · 主网**：一个币一张卡，卡片内完成地址复制、二维码、转出与余额刷新。
+
+![个人多链主网](docs/images/v040-personal-unlocked.png)
+
+**个人多链 · 测试网**：顶部标签切换，测试币可先在这里练手。
+
+![个人多链测试网](docs/images/v040-personal-testnet.png)
+
+## 界面（v0.3.10）
+
+v0.3.10 保留 v0.3.9 的合约工作台布局，并增强交易记录中的 ERC-20 数量显示。
 
 **概览**：NIU 总余额、当前地址、区块、连接状态和最近交易。
 

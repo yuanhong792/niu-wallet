@@ -7,6 +7,7 @@
 <title>牛币钱包</title>
 <link rel="icon" type="image/png" href="/niu-gold.png">
 <link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/personal.css">
 </head>
 <body>
 
@@ -31,6 +32,7 @@
       <button class="nav-item" data-page="mining"><span class="nav-dot"></span>挖矿</button>
       <button class="nav-item" data-page="contract"><span class="nav-dot"></span>智能合约</button>
       <button class="nav-item" data-page="settings"><span class="nav-dot"></span>设置</button>
+      <button class="nav-item" data-page="personal"><span class="nav-dot"></span>个人多链</button>
     </nav>
 
     <div class="peerbox">
@@ -39,6 +41,7 @@
         <span class="peer-label" id="peerLabel">检测中</span>
       </div>
       <div class="peer-meta" id="peerMeta">等待节点</div>
+      <div class="peer-meta peer-version" id="appVersion"></div>
     </div>
   </aside>
 
@@ -338,6 +341,38 @@
       </div>
     </section>
 
+    <section class="page" id="page-personal">
+      <div class="page-head"><h2>个人多链钱包</h2><p class="page-sub">一个币一张卡：余额、收款地址、二维码、转出都在自己的卡里，互不干扰。</p></div>
+      <div class="card personal-intro"><strong>先创建并备份个人钱包，再使用卡片上的专属收款地址。</strong><p>原有 NIU 账户与此处账户分别备份。USDT / USDC 当前仅支持 Ethereum ERC20，不能接收 TRC20。转出 ERC20 代币需要 ETH 支付网络手续费。</p></div>
+      <div class="card form-card" id="personalVault">
+        <div class="card-head"><h3 id="personalVaultTitle">创建或解锁</h3><span id="personalLockState"></span></div>
+        <div class="vault-grid">
+          <div class="vault-form">
+            <label class="field"><span class="field-k">个人钱包口令（至少12个字符）</span><input id="personalPassword" type="password" autocomplete="new-password"></label>
+            <label class="field" id="personalPasswordAgainField"><span class="field-k">再次输入口令</span><input id="personalPasswordAgain" type="password" autocomplete="new-password"></label>
+            <div class="btn-row personal-wrap"><button class="primary-btn slim" id="personalCreate">创建独立账户</button><button class="primary-btn slim" id="personalUnlock">解锁</button><button class="ghost-btn" id="personalLock">立即锁定</button><button class="ghost-btn" id="personalBackup">导出加密备份</button><button class="ghost-btn" id="personalRestore">从备份恢复</button><input id="personalRestoreFile" type="file" accept=".json,application/json" hidden></div>
+          </div>
+          <div class="vault-note">
+            <strong>口令只在本机使用</strong>
+            <p>口令用于加密此处的 BTC 与 EVM 私钥，忘记口令无法找回。导出的备份文件同样用这个口令加密，可在全新数据目录恢复；已有账户时拒绝覆盖。</p>
+            <p>原有 NIU 账户与这里的个人账户分开备份，互不影响。</p>
+          </div>
+        </div>
+      </div>
+      <div class="personal-toolbar">
+        <div class="chain-tabs" role="tablist" aria-label="主网与测试网切换">
+          <button class="chain-tab is-active" data-chain="main" role="tab" aria-selected="true">主网 · 真实资产<span class="chain-count" id="countMain">5</span></button>
+          <button class="chain-tab" data-chain="test" role="tab" aria-selected="false">测试网 · 测试币<span class="chain-count" id="countTest">3</span></button>
+        </div>
+        <button class="ghost-btn slim" id="personalRefreshAll">刷新全部余额</button>
+      </div>
+      <p class="personal-toolbar-hint">余额需手动刷新；刷新会把该网络的收款地址发给对应的节点服务商。测试网币没有价值，可先在这里练手。</p>
+      <div class="asset-grid" id="personalAssetsMain"></div>
+      <div class="asset-grid" id="personalAssetsTest" hidden></div>
+      <p class="hint">入账以网络余额与链上记录为准；私钥不会离开本机。</p>
+      <div class="card"><div class="card-head"><h3>本机发送记录</h3></div><p class="hint">这里记录本机发起的交易；广播结果未知时不要重复转账。</p><div id="personalHistory"></div></div>
+      <p role="status" id="personalMessage"></p>
+    </section>
   </main>
 </div>
 
@@ -356,5 +391,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="/app.js"></script>
+<script src="/coin-icons.js"></script>
+<script src="/personal.js"></script>
 </body>
 </html>
